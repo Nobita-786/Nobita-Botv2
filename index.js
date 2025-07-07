@@ -1,7 +1,7 @@
 const { spawn } = require("child_process");
 const log = require("./logger/log.js");
 
-// 👇 Express Server for BetterStack
+// ✅ Step 1: Express server for BetterStack
 const express = require("express");
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -13,8 +13,8 @@ app.get("/", (req, res) => {
 app.listen(PORT, () => {
   console.log(`Express server running on port ${PORT}`);
 });
-// 👆 End Express server
 
+// ✅ Step 2: Start Goat.js bot
 function startProject() {
   const child = spawn("node", ["Goat.js"], {
     cwd: __dirname,
