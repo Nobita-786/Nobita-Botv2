@@ -18,7 +18,7 @@ module.exports = {
 				const replies = [
 					"Oye Mere boss ko baar baar mention karna band kar, woh Shizuka ke saath movie dekh rahe hain 🍿❤️",
 					"Areee! Nobita ko mention karna band karo... Shizuka unka haath pakad ke baithi hai 😳💞",
-					"Tumne Nobita ko mention kiya? Jal jaa jal jaa... woh to sirf Shizuka ke hain 😎🔥",
+					"Kya kam hai mujhe bolo boss ko mention mt kar",
 					"Nobita abhi busy hai... Shizuka ke liye chocolate leke gaya hai 🍫🥰",
 					"Mention mat karo Nobita ko, unka dhyaan Shizuka ke zulfon me uljha hua hai 😍",
 					"Boss Nobita ke pass abhi time nahi hai, woh Shizuka ki aankhon me kho gaya hai 😌💖",
