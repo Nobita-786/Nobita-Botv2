@@ -1,27 +1,39 @@
 const fs = require("fs");
-const path = require("path");
-const dataPath = path.join(__dirname, "..", "data", "savednicks.json");
+const nickLockPath = __dirname + "/../data/nicknamelock.json";
+const savedNicksPath = __dirname + "/../data/savednicks.json";
+
+if (!fs.existsSync(nickLockPath)) fs.writeFileSync(nickLockPath, "{}");
+if (!fs.existsSync(savedNicksPath)) fs.writeFileSync(savedNicksPath, "{}");
 
 module.exports = {
   config: {
     name: "nicknamelock",
-    eventType: ["change_nickname"]
+    version: "1.0",
+    author: "Raj",
+    description: "Automatically reverts nickname changes if locked",
+    eventType: ["change_thread_nickname"]
   },
 
-  onEvent: async function ({ event, api }) {
-    const threadID = event.threadID;
-    const userID = event.participantID;
+  async run({ api, event }) {
+    const { threadID, participantID, nickname } = event;
+    const nickLocks = JSON.parse(fs.readFileSync(nickLockPath));
+    const savedNicks = JSON.parse(fs.readFileSync(savedNicksPath));
 
-    if (!fs.existsSync(dataPath)) return;
+    if (!nickLocks[threadID]) return;
 
-    const data = JSON.parse(fs.readFileSync(dataPath));
-    if (!data[threadID] || !data[threadID].locked) return;
+    // agar saved nickname nahi hai, pehle save karo
+    if (!savedNicks[threadID]) savedNicks[threadID] = {};
+    if (!savedNicks[threadID][participantID]) {
+      savedNicks[threadID][participantID] = nickname || null;
+      fs.writeFileSync(savedNicksPath, JSON.stringify(savedNicks, null, 2));
+      return;
+    }
 
-    const savedNick = data[threadID].nicks?.[userID] || "";
+    const originalNick = savedNicks[threadID][participantID];
 
-    // Only change if not already same
-    if (event.nick !== savedNick) {
-      await api.changeNickname(savedNick, threadID, userID);
+    // agar nickname badal gaya, to wapas karo
+    if (nickname !== originalNick) {
+      api.changeNickname(originalNick || "", threadID, participantID);
     }
   }
 };
