@@ -1,35 +1,27 @@
 const fs = require("fs");
 const path = require("path");
-const lockFile = path.join(__dirname, "../data/nicknamelock.json");
-const saveFile = path.join(__dirname, "../data/savednicks.json");
+const dataPath = path.join(__dirname, "..", "data", "savednicks.json");
 
 module.exports = {
   config: {
     name: "nicknamelock",
-    type: "event"
+    eventType: ["change_nickname"]
   },
 
-  async onEvent({ event, api }) {
-    if (event.logMessageType !== "log:user-nickname") return;
-
+  onEvent: async function ({ event, api }) {
     const threadID = event.threadID;
-    const changedUID = Object.keys(event.logMessageData.nicknames || {})[0];
-    if (!changedUID) return;
+    const userID = event.participantID;
 
-    if (!fs.existsSync(lockFile) || !fs.existsSync(saveFile)) return;
+    if (!fs.existsSync(dataPath)) return;
 
-    const locks = JSON.parse(fs.readFileSync(lockFile));
-    const saved = JSON.parse(fs.readFileSync(saveFile));
+    const data = JSON.parse(fs.readFileSync(dataPath));
+    if (!data[threadID] || !data[threadID].locked) return;
 
-    if (!locks[threadID] || !saved[threadID] || !saved[threadID][changedUID]) return;
+    const savedNick = data[threadID].nicks?.[userID] || "";
 
-    const originalNick = saved[threadID][changedUID];
-
-    try {
-      await api.changeNickname(originalNick, threadID, changedUID);
-      console.log(`[NicknameLock] Reverted nickname for ${changedUID}`);
-    } catch (e) {
-      console.log("[NicknameLock] Error changing nickname:", e.message);
+    // Only change if not already same
+    if (event.nick !== savedNick) {
+      await api.changeNickname(savedNick, threadID, userID);
     }
   }
 };
