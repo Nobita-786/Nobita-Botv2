@@ -7,7 +7,8 @@ module.exports = {
     name: "nicknamelock",
     eventType: ["log:user-nickname"],
     version: "1.0",
-    credits: "Raj"
+    credits: "Raj",
+    category: "group" // ✅ Yeh line add karni thi
   },
 
   run: async function ({ api, event }) {
