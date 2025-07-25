@@ -1,41 +1,25 @@
 const fs = require("fs");
 const path = require("path");
-const lockPath = path.join(__dirname, "../data/nicknamelock.json");
 
-module.exports = {
-  config: {
-    name: "nicknamelock",
-    version: "1.0",
-    author: "Raj",
-    category: "events"
-  },
+const filePath = path.join(__dirname, "../data/nicknamelock.json");
+if (!fs.existsSync(filePath)) fs.writeFileSync(filePath, "{}");
 
-  onStart: async ({ api, event, threadsData }) => {
-    if (event.logMessageType !== "log:thread-name" && event.logMessageType !== "log:user-nickname") return;
-    if (!fs.existsSync(lockPath)) fs.writeFileSync(lockPath, "{}");
+module.exports = async function ({ api, event }) {
+  if (event.logMessageType !== "log:user-nickname") return;
 
-    const data = JSON.parse(fs.readFileSync(lockPath));
-    const tid = event.threadID;
+  const data = JSON.parse(fs.readFileSync(filePath, "utf-8"));
+  const threadID = event.threadID;
 
-    // If nickname lock not enabled in this thread, ignore
-    if (!data[tid]) return;
+  if (!data[threadID]) return;
 
-    try {
-      const threadInfo = await api.getThreadInfo(tid);
-      const users = threadInfo.userInfo;
-      const nicknames = threadInfo.nicknames;
+  const changedUser = event.logMessageData.participant_id;
 
-      for (const user of users) {
-        const uid = user.id;
-        const correctNick = nicknames[uid] || "";
-
-        // If nickname differs, reset it
-        if (correctNick && threadInfo.nicknames[uid] !== correctNick) {
-          await api.changeNickname(correctNick, tid, uid);
-        }
-      }
-    } catch (e) {
-      console.error("Nickname lock error:", e);
-    }
+  try {
+    const userInfo = await api.getUserInfo(changedUser);
+    const originalName = userInfo[changedUser]?.name || "User";
+    await api.changeNickname(originalName, threadID, changedUser);
+    console.log(`🔒 Nickname reverted for ${originalName}`);
+  } catch (err) {
+    console.error("Nickname revert failed:", err);
   }
 };
