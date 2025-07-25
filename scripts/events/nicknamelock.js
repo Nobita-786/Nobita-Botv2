@@ -1,41 +1,41 @@
 const fs = require("fs");
-const nickLockPath = __dirname + "/../data/nicknamelock.json";
-const savedNickPath = __dirname + "/../data/savednicks.json";
+const path = require("path");
+const lockPath = path.join(__dirname, "../data/nicknamelock.json");
 
 module.exports = {
   config: {
     name: "nicknamelock",
-    eventType: ["log:user-nickname"],
     version: "1.0",
-    credits: "Raj",
-    category: "group" // ✅ Yeh line add karni thi
+    author: "Raj",
+    category: "events"
   },
 
-  run: async function ({ api, event }) {
+  onStart: async ({ api, event, threadsData }) => {
+    if (event.logMessageType !== "log:thread-name" && event.logMessageType !== "log:user-nickname") return;
+    if (!fs.existsSync(lockPath)) fs.writeFileSync(lockPath, "{}");
+
+    const data = JSON.parse(fs.readFileSync(lockPath));
     const tid = event.threadID;
-    const uid = event.logMessageData.participant_id;
 
-    if (!fs.existsSync(nickLockPath)) fs.writeFileSync(nickLockPath, "{}");
-    if (!fs.existsSync(savedNickPath)) fs.writeFileSync(savedNickPath, "{}");
+    // If nickname lock not enabled in this thread, ignore
+    if (!data[tid]) return;
 
-    const nickLockData = JSON.parse(fs.readFileSync(nickLockPath));
-    const savedNickData = JSON.parse(fs.readFileSync(savedNickPath));
+    try {
+      const threadInfo = await api.getThreadInfo(tid);
+      const users = threadInfo.userInfo;
+      const nicknames = threadInfo.nicknames;
 
-    if (!nickLockData[tid]) return;
+      for (const user of users) {
+        const uid = user.id;
+        const correctNick = nicknames[uid] || "";
 
-    const current = event.logMessageData.nickname;
-
-    if (!savedNickData[tid]) savedNickData[tid] = {};
-    if (!savedNickData[tid][uid]) {
-      savedNickData[tid][uid] = current || "";
-      fs.writeFileSync(savedNickPath, JSON.stringify(savedNickData, null, 2));
-      return;
-    }
-
-    const lockedNick = savedNickData[tid][uid];
-
-    if (current !== lockedNick) {
-      api.changeNickname(lockedNick, tid, uid);
+        // If nickname differs, reset it
+        if (correctNick && threadInfo.nicknames[uid] !== correctNick) {
+          await api.changeNickname(correctNick, tid, uid);
+        }
+      }
+    } catch (e) {
+      console.error("Nickname lock error:", e);
     }
   }
 };
