@@ -7,7 +7,8 @@ module.exports = {
     name: "nicknamelock",
     eventType: ["log:user-nickname"],
     version: "1.0",
-    credits: "Raj"
+    credits: "Raj",
+    category: "group" // ✅ Yeh line add karo
   },
 
   run: async function ({ api, event }) {
@@ -20,7 +21,6 @@ module.exports = {
     const nickLockData = JSON.parse(fs.readFileSync(nickLockPath));
     const savedNickData = JSON.parse(fs.readFileSync(savedNickPath));
 
-    // ✅ Lock not active
     if (!nickLockData[tid]) return;
 
     const currentNick = event.logMessageData.nickname;
