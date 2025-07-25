@@ -1,31 +1,40 @@
 const fs = require("fs");
-const path = require("path");
+const nickLockPath = __dirname + "/../data/nicknamelock.json";
+const savedNickPath = __dirname + "/../data/savednicks.json";
 
-const filePath = path.join(__dirname, "../data/nicknamelock.json");
-if (!fs.existsSync(filePath)) fs.writeFileSync(filePath, "{}");
+module.exports = {
+  config: {
+    name: "nicknamelock",
+    eventType: ["log:user-nickname"],
+    version: "1.0",
+    credits: "Raj"
+  },
 
-module.exports = async function ({ api, event }) {
-  try {
-    if (event.logMessageType !== "log:user-nickname") return;
+  run: async function ({ api, event }) {
+    const tid = event.threadID;
+    const uid = event.logMessageData.participant_id;
 
-    const data = JSON.parse(fs.readFileSync(filePath, "utf-8"));
-    const threadID = event.threadID;
+    if (!fs.existsSync(nickLockPath)) fs.writeFileSync(nickLockPath, "{}");
+    if (!fs.existsSync(savedNickPath)) fs.writeFileSync(savedNickPath, "{}");
 
-    if (!data[threadID]) return;
+    const nickLockData = JSON.parse(fs.readFileSync(nickLockPath));
+    const savedNickData = JSON.parse(fs.readFileSync(savedNickPath));
 
-    const userID = event.logMessageData.participant_id;
-    const userInfo = await api.getUserInfo(userID);
+    // ✅ Lock not active
+    if (!nickLockData[tid]) return;
 
-    if (!userInfo || !userInfo[userID] || !userInfo[userID].name) {
-      console.warn(`[⚠️] User info not found for UID: ${userID}`);
+    const currentNick = event.logMessageData.nickname;
+
+    if (!savedNickData[tid]) savedNickData[tid] = {};
+    if (!savedNickData[tid][uid]) {
+      savedNickData[tid][uid] = currentNick || "";
+      fs.writeFileSync(savedNickPath, JSON.stringify(savedNickData, null, 2));
       return;
     }
 
-    const originalName = userInfo[userID].name;
-    await api.changeNickname(originalName, threadID, userID);
-    console.log(`🔁 Nickname reset for ${originalName}`);
-    
-  } catch (err) {
-    console.error("❌ Nickname lock event error:", err);
+    const lockedNick = savedNickData[tid][uid];
+    if (currentNick !== lockedNick) {
+      api.changeNickname(lockedNick, tid, uid);
+    }
   }
 };
