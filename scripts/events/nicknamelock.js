@@ -8,7 +8,7 @@ module.exports = {
     eventType: ["log:user-nickname"],
     version: "1.0",
     credits: "Raj",
-    category: "group" // ✅ Yeh line add karo
+    category: "events" // ✅ यह जरूरी है!
   },
 
   run: async function ({ api, event }) {
@@ -23,17 +23,18 @@ module.exports = {
 
     if (!nickLockData[tid]) return;
 
-    const currentNick = event.logMessageData.nickname;
+    const current = event.logMessageData.nickname;
 
     if (!savedNickData[tid]) savedNickData[tid] = {};
     if (!savedNickData[tid][uid]) {
-      savedNickData[tid][uid] = currentNick || "";
+      savedNickData[tid][uid] = current || "";
       fs.writeFileSync(savedNickPath, JSON.stringify(savedNickData, null, 2));
       return;
     }
 
     const lockedNick = savedNickData[tid][uid];
-    if (currentNick !== lockedNick) {
+
+    if (current !== lockedNick) {
       api.changeNickname(lockedNick, tid, uid);
     }
   }
