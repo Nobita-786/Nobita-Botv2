@@ -7,26 +7,32 @@ module.exports = {
     version: "1.0",
     author: "Raj",
     role: 1,
-    shortDescription: "Lock nicknames in group",
+    shortDescription: "Lock nicknames",
+    longDescription: "Enable or disable nickname locking in this thread",
     category: "group",
-    guide: "{p}locknick on / off"
+    guide: {
+      en: "{pn} on/off"
+    }
   },
 
-  onStart({ event, message, args }) {
-    const threadID = event.threadID;
+  onStart: async function ({ api, args, event }) {
     if (!fs.existsSync(path)) fs.writeFileSync(path, "{}");
-    const data = JSON.parse(fs.readFileSync(path));
+
+    let data = JSON.parse(fs.readFileSync(path));
+    const tid = event.threadID;
 
     if (args[0] === "on") {
-      data[threadID] = true;
-      message.reply("✅ Nickname lock is now ON.");
-    } else if (args[0] === "off") {
-      delete data[threadID];
-      message.reply("❌ Nickname lock is now OFF.");
-    } else {
-      return message.reply("⚠️ Use: locknick on / off");
+      data[tid] = true;
+      fs.writeFileSync(path, JSON.stringify(data, null, 2));
+      return api.sendMessage("✅ Nickname lock enabled.", tid);
     }
 
-    fs.writeFileSync(path, JSON.stringify(data, null, 2));
+    if (args[0] === "off") {
+      delete data[tid];
+      fs.writeFileSync(path, JSON.stringify(data, null, 2));
+      return api.sendMessage("❌ Nickname lock disabled.", tid);
+    }
+
+    return api.sendMessage("❗ Use: locknick on/off", tid);
   }
 };
