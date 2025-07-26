@@ -1,7 +1,7 @@
 module.exports = {
 	config: {
 		name: "fingering2",
-		aliases: [],
+		aliases: [fg2],
 		version: "1.0",
 		author: "Jun",
 		countDown: 5,
@@ -19,7 +19,7 @@ module.exports = {
 		const dirMaterial = __dirname + `/cache/canvas/`;
 		const path = resolve(__dirname, 'cache/canvas', 'fingeringv2.png');
 		if (!existsSync(dirMaterial + "canvas")) mkdirSync(dirMaterial, { recursive: true });
-		if (!existsSync(path)) await downloadFile("https://i.imgur.com/CQQZusa.jpeg", path);
+		if (!existsSync(path)) await downloadFile("https://i.imgur.com/MWuSaEm.jpeg", path);
 	},
 
 	makeImage: async function({ one, two }) {
