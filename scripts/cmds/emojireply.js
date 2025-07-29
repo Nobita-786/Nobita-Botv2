@@ -3,9 +3,11 @@ module.exports = {
     name: "emojiReply",
     version: "2.1",
     author: "Hamim",
-    description: "Funny emoji-based auto-reply",
     category: "no prefix",
-    cooldown: 3
+    countDown: 3,
+    role: 0,
+    shortDescription: " emoji reply",
+    longDescription: "reply to any emoji "
   },
 
   onStart: async function () {
