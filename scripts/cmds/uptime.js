@@ -1,3 +1,6 @@
+const axios = require("axios");
+const fs = require("fs-extra");
+
 module.exports = {
   config: {
     name: "uptime",
@@ -51,7 +54,17 @@ module.exports = {
 ║
 ╚════════════════════════════════════╝`;
 
-      api.sendMessage(message, event.threadID);
+      // Download and attach the image
+      const imgUrl = "https://files.catbox.moe/ui0wzy.jpg";
+      const imgPath = __dirname + "/uptime.jpg";
+      const response = await axios.get(imgUrl, { responseType: "arraybuffer" });
+      await fs.writeFile(imgPath, Buffer.from(response.data, "binary"));
+
+      api.sendMessage({
+        body: message,
+        attachment: fs.createReadStream(imgPath)
+      }, event.threadID, () => fs.unlinkSync(imgPath)); // delete image after sending
+
     } catch (error) {
       console.error(error);
       api.sendMessage("❌ Error occurred while retrieving data.", event.threadID);
