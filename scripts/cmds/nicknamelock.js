@@ -1,32 +1,45 @@
 const fs = require("fs");
 const path = __dirname + "/../../cache/nicknamelock.json";
 
-module.exports.config = {
-  name: "nicknamelock",
-  version: "1.0.0",
-  hasPermssion: 1,
-  author: "Raj",
-  description: "Nickname lock on/off",
-  commandCategory: "system",
-  usages: "[on/off]",
-  cooldowns: 5
-};
+module.exports = {
+  config: {
+    name: "nicknamelock",
+    version: "1.0.0",
+    author: "Raj",
+    description: "Enable or disable nickname and group name lock",
+    category: "box",
+    guide: {
+      en: "{pn} on/off\n{pn} allow @mention"
+    }
+  },
 
-module.exports.onStart = async function ({ api, event, args }) {
-  if (!fs.existsSync(path)) fs.writeFileSync(path, JSON.stringify({}));
-  const data = JSON.parse(fs.readFileSync(path));
-  const threadID = event.threadID;
-  const mode = args[0];
+  onStart: async function ({ api, event, args, usersData }) {
+    if (!fs.existsSync(path)) fs.writeFileSync(path, JSON.stringify({ enabled: false, groupName: "", allowed: [] }, null, 2));
+    const data = JSON.parse(fs.readFileSync(path));
 
-  if (mode === "on") {
-    data[threadID] = true;
-    api.sendMessage("✅ Nickname lock enabled.", threadID);
-  } else if (mode === "off") {
-    delete data[threadID];
-    api.sendMessage("❌ Nickname lock disabled.", threadID);
-  } else {
-    return api.sendMessage("⚙️ Use: nicknamelock on / off", threadID);
+    const input = args[0];
+
+    if (input === "on") {
+      data.enabled = true;
+      const threadInfo = await api.getThreadInfo(event.threadID);
+      data.groupName = threadInfo.name || "Locked Group";
+      fs.writeFileSync(path, JSON.stringify(data, null, 2));
+      return api.sendMessage("✅ Nickname lock enabled!", event.threadID);
+    }
+
+    if (input === "off") {
+      data.enabled = false;
+      fs.writeFileSync(path, JSON.stringify(data, null, 2));
+      return api.sendMessage("❌ Nickname lock disabled.", event.threadID);
+    }
+
+    if (input === "allow" && event.mentions) {
+      const allowedUIDs = Object.keys(event.mentions);
+      data.allowed.push(...allowedUIDs);
+      fs.writeFileSync(path, JSON.stringify(data, null, 2));
+      return api.sendMessage("✅ Allowed users updated.", event.threadID);
+    }
+
+    return api.sendMessage("⚠️ Usage: nicknamelock on/off or nicknamelock allow @mention", event.threadID);
   }
-
-  fs.writeFileSync(path, JSON.stringify(data, null, 2));
 };
