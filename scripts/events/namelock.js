@@ -1,41 +1,36 @@
 const fs = require("fs-extra");
-const path = __dirname + "/../cache/nicknamelock.json";
+const path = __dirname + "/../../cache/nicknamelock.json";
 
 module.exports.config = {
-  name: "nicknamelock",
-  eventType: ["log:user-nickname"],
-  version: "1.0.0",
+  name: "locknickname",
+  version: "1.0",
   author: "Raj",
-  description: "Locks nicknames in group chats unless changed by whitelisted admin(s)"
+  eventType: ["log:user-nickname", "log:thread-name"],
+  description: "Auto revert nickname or group name changes"
 };
 
-module.exports.run = async function ({ api, event, Threads, Users }) {
-  console.log("Nickname change detected:", event); // ✅ Debug log
-
+module.exports.run = async function ({ api, event }) {
   const threadID = event.threadID;
   const senderID = event.author;
+  if (!fs.existsSync(path)) return;
+  const data = JSON.parse(fs.readFileSync(path));
+  if (!data[threadID] || !data[threadID].nicknameLock) return;
 
-  // Load cache
-  let data = {};
-  if (fs.existsSync(path)) data = JSON.parse(fs.readFileSync(path));
-  if (!data[threadID] || data[threadID].status !== true) return;
+  const threadData = data[threadID];
 
-  const whitelist = data[threadID].whitelist || [];
-  if (whitelist.includes(senderID)) return; // allow if in whitelist
+  // If sender is whitelisted admin, allow changes
+  if (threadData.adminWhitelist.includes(senderID)) return;
 
-  const oldNick = await Threads.getData(threadID).then(res => {
-    const oldData = res.nicknames || {};
-    return oldData[event.logMessageData.participant_id] || null;
-  });
+  // Handle nickname change
+  if (event.logMessageType === "log:user-nickname") {
+    const userID = event.logMessageData.participant_id;
+    const oldNickname = threadData.lockedNicknames[userID] || null;
+    api.changeNickname(oldNickname || "", threadID, userID);
+  }
 
-  // Revert nickname
-  try {
-    await api.changeNickname(oldNick || "", threadID, event.logMessageData.participant_id);
-    api.sendMessage(
-      `⚠️ Group nickname is locked.\nOnly authorized admins can change it.`,
-      threadID
-    );
-  } catch (e) {
-    console.log("Nickname revert failed:", e);
+  // Handle group name change
+  if (event.logMessageType === "log:thread-name") {
+    const oldName = threadData.lockedGroupName;
+    api.setTitle(oldName, threadID);
   }
 };
