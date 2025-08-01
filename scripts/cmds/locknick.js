@@ -1,69 +1,61 @@
-const fs = require("fs");
-const path = require("path");
+const fs = require("fs-extra");
+const path = __dirname + "/../cache/nicknamelock.json";
 
-const lockFile = path.join(__dirname, "..", "events", "namelock.json");
+module.exports.config = {
+  name: "nicknamelock",
+  version: "1.0.0",
+  author: "Raj",
+  description: "Lock or unlock nickname change in group",
+  usage: "[on/off/whitelist add/remove UID]",
+  cooldowns: 3,
+  hasPermission: 1,
+  category: "group"
+};
 
-function loadData() {
-  try {
-    if (!fs.existsSync(lockFile)) return {};
-    return JSON.parse(fs.readFileSync(lockFile));
-  } catch (e) {
-    return {};
+module.exports.run = async function ({ api, event, args }) {
+  const threadID = event.threadID;
+  const subCmd = args[0];
+
+  let data = {};
+  if (fs.existsSync(path)) data = JSON.parse(fs.readFileSync(path));
+  if (!data[threadID]) data[threadID] = { enabled: false, whitelist: [] };
+
+  const threadData = data[threadID];
+
+  if (subCmd === "on") {
+    threadData.enabled = true;
+    fs.writeFileSync(path, JSON.stringify(data, null, 2));
+    return api.sendMessage("✅ Nickname lock has been ENABLED.", threadID);
   }
-}
 
-function saveData(data) {
-  fs.writeFileSync(lockFile, JSON.stringify(data, null, 2));
-}
+  if (subCmd === "off") {
+    threadData.enabled = false;
+    fs.writeFileSync(path, JSON.stringify(data, null, 2));
+    return api.sendMessage("❌ Nickname lock has been DISABLED.", threadID);
+  }
 
-module.exports = {
-  config: {
-    name: "namelock",
-    version: "1.0",
-    author: "Raj",
-    role: 1,
-    category: "group",
-    shortDescription: { en: "Lock group name and member nicknames" },
-    longDescription: { en: "Prevent changes to group name and nicknames. Auto-restore if changed." },
-    guide: { en: "namelock on / namelock off" }
-  },
+  if (subCmd === "whitelist") {
+    const action = args[1];
+    const uid = args[2];
 
-  onStart: async function ({ api, event, args, threadsData, message }) {
-    const threadID = event.threadID;
-    const data = loadData();
-
-    const sub = args[0]?.toLowerCase();
-
-    if (sub === "on") {
-      const threadInfo = await api.getThreadInfo(threadID);
-
-      data[threadID] = {
-        threadName: threadInfo.threadName,
-        nicknames: {}
-      };
-
-      for (const user of threadInfo.userInfo) {
-        const uid = user.id;
-        const nickname = threadInfo.nicknames?.[uid] || "";
-        data[threadID].nicknames[uid] = nickname;
-      }
-
-      saveData(data);
-      message.reply("✅ | Group name & member nicknames locked.");
+    if (!["add", "remove"].includes(action) || !uid) {
+      return api.sendMessage("⚠️ Usage:\n• nicknamelock whitelist add <uid>\n• nicknamelock whitelist remove <uid>", threadID);
     }
 
-    else if (sub === "off") {
-      if (data[threadID]) {
-        delete data[threadID];
-        saveData(data);
-        message.reply("🔓 | Name lock disabled for this group.");
-      } else {
-        message.reply("ℹ️ | Name lock was not enabled in this group.");
+    if (action === "add") {
+      if (!threadData.whitelist.includes(uid)) {
+        threadData.whitelist.push(uid);
       }
+      fs.writeFileSync(path, JSON.stringify(data, null, 2));
+      return api.sendMessage(`✅ UID ${uid} added to whitelist.`, threadID);
     }
 
-    else {
-      message.reply("❌ | Usage: namelock on / namelock off");
+    if (action === "remove") {
+      threadData.whitelist = threadData.whitelist.filter(x => x !== uid);
+      fs.writeFileSync(path, JSON.stringify(data, null, 2));
+      return api.sendMessage(`✅ UID ${uid} removed from whitelist.`, threadID);
     }
   }
+
+  return api.sendMessage("⚠️ Invalid usage. Try:\n• nicknamelock on\n• nicknamelock off\n• nicknamelock whitelist add/remove <uid>", threadID);
 };
