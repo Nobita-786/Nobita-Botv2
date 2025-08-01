@@ -1,61 +1,63 @@
 const fs = require("fs-extra");
-const path = __dirname + "/../cache/nicknamelock.json";
+const path = __dirname + "/../../cache/nicknamelock.json";
 
 module.exports.config = {
   name: "nicknamelock",
-  version: "1.0.0",
+  version: "1.0",
   author: "Raj",
-  description: "Lock or unlock nickname change in group",
-  usage: "[on/off/whitelist add/remove UID]",
-  cooldowns: 3,
-  hasPermission: 1,
-  category: "group"
+  description: "Lock group nickname and name",
+  usage: "[on/off/addadmin/removeadmin]",
+  cooldown: 5,
+  role: 1
 };
 
-module.exports.run = async function ({ api, event, args }) {
+module.exports.onStart = async function ({ api, event, args }) {
   const threadID = event.threadID;
-  const subCmd = args[0];
-
   let data = {};
-  if (fs.existsSync(path)) data = JSON.parse(fs.readFileSync(path));
-  if (!data[threadID]) data[threadID] = { enabled: false, whitelist: [] };
+  if (fs.existsSync(path)) {
+    data = JSON.parse(fs.readFileSync(path));
+  }
 
-  const threadData = data[threadID];
+  if (!data[threadID]) {
+    data[threadID] = {
+      nicknameLock: false,
+      lockedNicknames: {},
+      lockedGroupName: null,
+      adminWhitelist: []
+    };
+  }
 
-  if (subCmd === "on") {
-    threadData.enabled = true;
+  const action = args[0];
+  const mention = Object.keys(event.mentions || {});
+
+  if (action === "on") {
+    data[threadID].nicknameLock = true;
+    data[threadID].lockedGroupName = (await api.getThreadInfo(threadID)).name;
+    const userInfo = await api.getThreadInfo(threadID);
+    for (const user of userInfo.userInfo) {
+      data[threadID].lockedNicknames[user.id] = user.nickname || null;
+    }
     fs.writeFileSync(path, JSON.stringify(data, null, 2));
-    return api.sendMessage("✅ Nickname lock has been ENABLED.", threadID);
+    return api.sendMessage("✅ Nickname & group name lock is ON", threadID);
   }
 
-  if (subCmd === "off") {
-    threadData.enabled = false;
+  if (action === "off") {
+    data[threadID].nicknameLock = false;
     fs.writeFileSync(path, JSON.stringify(data, null, 2));
-    return api.sendMessage("❌ Nickname lock has been DISABLED.", threadID);
+    return api.sendMessage("❌ Nickname & group name lock is OFF", threadID);
   }
 
-  if (subCmd === "whitelist") {
-    const action = args[1];
-    const uid = args[2];
-
-    if (!["add", "remove"].includes(action) || !uid) {
-      return api.sendMessage("⚠️ Usage:\n• nicknamelock whitelist add <uid>\n• nicknamelock whitelist remove <uid>", threadID);
-    }
-
-    if (action === "add") {
-      if (!threadData.whitelist.includes(uid)) {
-        threadData.whitelist.push(uid);
-      }
-      fs.writeFileSync(path, JSON.stringify(data, null, 2));
-      return api.sendMessage(`✅ UID ${uid} added to whitelist.`, threadID);
-    }
-
-    if (action === "remove") {
-      threadData.whitelist = threadData.whitelist.filter(x => x !== uid);
-      fs.writeFileSync(path, JSON.stringify(data, null, 2));
-      return api.sendMessage(`✅ UID ${uid} removed from whitelist.`, threadID);
-    }
+  if (action === "addadmin" && mention.length > 0) {
+    data[threadID].adminWhitelist.push(...mention);
+    fs.writeFileSync(path, JSON.stringify(data, null, 2));
+    return api.sendMessage("✅ Added to nickname lock admin whitelist", threadID);
   }
 
-  return api.sendMessage("⚠️ Invalid usage. Try:\n• nicknamelock on\n• nicknamelock off\n• nicknamelock whitelist add/remove <uid>", threadID);
+  if (action === "removeadmin" && mention.length > 0) {
+    data[threadID].adminWhitelist = data[threadID].adminWhitelist.filter(id => !mention.includes(id));
+    fs.writeFileSync(path, JSON.stringify(data, null, 2));
+    return api.sendMessage("✅ Removed from nickname lock admin whitelist", threadID);
+  }
+
+  return api.sendMessage("⚠️ Usage: nicknamelock on | off | addadmin @tag | removeadmin @tag", threadID);
 };
