@@ -1,30 +1,32 @@
+const fs = require("fs-extra");
+const path = __dirname + "/../cache/nicknamelock.json";
+
 module.exports.config = {
-  name: "antiname",
+  name: "nicknamelock",
   eventType: ["log:user-nickname"],
-  version: "1.0",
-  author: "PREM BABU",
-  description: "Prevent users from changing the bot's nickname"
+  version: "1.0.0",
+  credits: "Raj",
+  description: "Locks nickname in group unless allowed UID"
 };
 
-module.exports.run = async function ({ api, event, usersData, threadsData }) {
-  const { logMessageData, threadID, author } = event;
-  const botID = api.getCurrentUserID();
-  const config = global.GoatBot.config;
-  const BOTNAME = config.BOTNAME || "Bot";
-  const ADMINBOT = config.ADMINBOT || [];
+module.exports.run = async function ({ api, event }) {
+  const threadID = event.threadID;
+  const { participantID, nickname } = event.logMessageData;
 
-  // Only trigger if bot's nickname is changed
-  if (logMessageData.participant_id === botID && author !== botID && !ADMINBOT.includes(author)) {
-    // Get saved nickname for bot in this thread
-    const threadData = await threadsData.get(threadID);
-    const lockedName = threadData?.data?.nickname || BOTNAME;
+  if (!fs.existsSync(path)) return;
 
-    // Revert nickname
-    await api.changeNickname(lockedName, threadID, botID);
+  const data = JSON.parse(fs.readFileSync(path, "utf-8"));
+  const threadData = data[threadID];
 
-    // Get name of the person who changed it
-    const name = (await usersData.getName(author)) || "User";
+  if (!threadData || !threadData.enabled) return;
 
-    return api.sendMessage(`⚠️ Sorry ${name}, आप बॉट का नाम नहीं बदल सकते 🤖`, threadID);
+  const whitelist = threadData.whitelist || [];
+
+  if (whitelist.includes(participantID)) return;
+
+  try {
+    await api.changeNickname("", threadID, participantID);
+  } catch (e) {
+    console.log("Failed to revert nickname:", e.message);
   }
 };
