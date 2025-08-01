@@ -15,9 +15,9 @@ function loadData() {
 module.exports = {
   config: {
     name: "namelock",
-    version: "1.0",
+    version: "1.1",
     author: "Raj",
-    description: "Locks group name and nicknames if changed",
+    description: "Reverts group name and nicknames if changed",
     dependencies: {}
   },
 
@@ -29,21 +29,34 @@ module.exports = {
 
     const lockData = data[threadID];
 
-    // Handle thread name change
+    // 🔁 Revert group name change
     if (event.logMessageType === "log:thread-name") {
-      const oldName = lockData.threadName;
-      if (event.logMessageData?.name !== oldName) {
-        await api.setTitle(oldName, threadID);
+      const currentName = event.logMessageData?.name;
+      const originalName = lockData.threadName;
+
+      if (currentName !== originalName) {
+        try {
+          await api.setTitle(originalName, threadID);
+          console.log(`🔒 Group name reverted to '${originalName}'`);
+        } catch (err) {
+          console.error("❌ Failed to revert group name:", err);
+        }
       }
     }
 
-    // Handle nickname change
-    if (event.logMessageType === "log:user-nickname") {
+    // 🔁 Revert nickname change
+    else if (event.logMessageType === "log:user-nickname") {
       const uid = event.logMessageData?.participant_id;
-      const oldNick = lockData.nicknames?.[uid] || "";
+      const newNick = event.logMessageData?.nickname;
+      const originalNick = lockData.nicknames?.[uid] ?? "";
 
-      if (event.logMessageData?.nickname !== oldNick) {
-        await api.changeNickname(oldNick, threadID, uid);
+      if (newNick !== originalNick) {
+        try {
+          await api.changeNickname(originalNick, threadID, uid);
+          console.log(`🔒 Nickname of UID ${uid} reverted to '${originalNick}'`);
+        } catch (err) {
+          console.error("❌ Failed to revert nickname:", err);
+        }
       }
     }
   }
