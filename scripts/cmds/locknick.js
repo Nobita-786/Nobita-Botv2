@@ -1,71 +1,69 @@
-const fs = require("fs-extra");
+const fs = require("fs");
 const path = require("path");
 
-const lockNickDataPath = path.join(__dirname, "..", "cache", "locknick.json");
-let lockNickData = fs.existsSync(lockNickDataPath) ? JSON.parse(fs.readFileSync(lockNickDataPath)) : {};
+const lockFile = path.join(__dirname, "..", "events", "namelock.json");
 
-function saveLockData() {
-  fs.ensureDirSync(path.dirname(lockNickDataPath));
-  fs.writeFileSync(lockNickDataPath, JSON.stringify(lockNickData, null, 2));
+function loadData() {
+  try {
+    if (!fs.existsSync(lockFile)) return {};
+    return JSON.parse(fs.readFileSync(lockFile));
+  } catch (e) {
+    return {};
+  }
+}
+
+function saveData(data) {
+  fs.writeFileSync(lockFile, JSON.stringify(data, null, 2));
 }
 
 module.exports = {
   config: {
-    name: "lockname",
+    name: "namelock",
     version: "1.0",
     author: "Raj",
-    countDown: 5,
     role: 1,
-    shortDescription: "Lock nicknames of all group members",
-    longDescription: "Locks all nicknames in the group, reverting any change automatically",
     category: "group",
-    guide: {
-      en: "{pn} on/off"
-    }
+    shortDescription: { en: "Lock group name and member nicknames" },
+    longDescription: { en: "Prevent changes to group name and nicknames. Auto-restore if changed." },
+    guide: { en: "namelock on / namelock off" }
   },
 
-  onStart: async function ({ api, event, args }) {
+  onStart: async function ({ api, event, args, threadsData, message }) {
     const threadID = event.threadID;
+    const data = loadData();
 
-    if (!args[0]) return api.sendMessage("⚠️ इस्तेमाल करें: lockname on/off", threadID);
+    const sub = args[0]?.toLowerCase();
 
-    if (args[0].toLowerCase() === "on") {
+    if (sub === "on") {
       const threadInfo = await api.getThreadInfo(threadID);
-      const nicknames = {};
+
+      data[threadID] = {
+        threadName: threadInfo.threadName,
+        nicknames: {}
+      };
 
       for (const user of threadInfo.userInfo) {
-        nicknames[user.id] = user.nickname || "";
+        const uid = user.id;
+        const nickname = threadInfo.nicknames?.[uid] || "";
+        data[threadID].nicknames[uid] = nickname;
       }
 
-      lockNickData[threadID] = nicknames;
-      saveLockData();
-
-      return api.sendMessage(`🔒 सभी members के nicknames लॉक कर दिए गए।`, threadID);
+      saveData(data);
+      message.reply("✅ | Group name & member nicknames locked.");
     }
 
-    if (args[0].toLowerCase() === "off") {
-      if (!lockNickData[threadID]) return api.sendMessage("⚠️ Nickname पहले से unlocked हैं!", threadID);
-
-      delete lockNickData[threadID];
-      saveLockData();
-      return api.sendMessage("✅ Nickname lock हटा दिया गया।", threadID);
+    else if (sub === "off") {
+      if (data[threadID]) {
+        delete data[threadID];
+        saveData(data);
+        message.reply("🔓 | Name lock disabled for this group.");
+      } else {
+        message.reply("ℹ️ | Name lock was not enabled in this group.");
+      }
     }
 
-    return api.sendMessage("❌ Invalid option! Use: lockname on/off", threadID);
-  },
-
-  onEvent: async function ({ event, api }) {
-    const { threadID, logMessageType, logMessageData } = event;
-
-    if (!lockNickData[threadID]) return;
-    if (logMessageType !== "log:thread-nickname") return;
-
-    const userID = logMessageData.participant_id;
-    const lockedNick = lockNickData[threadID][userID] || "";
-
-    if ((logMessageData.nickname || "") !== (lockedNick || "")) {
-      await api.changeNickname(lockedNick, threadID, userID);
-      api.sendMessage(`🔄 "${logMessageData.nickname || "Blank"}" nickname detect हुआ था।\nपुराना nickname वापस set कर दिया गया।`, threadID);
+    else {
+      message.reply("❌ | Usage: namelock on / namelock off");
     }
   }
 };
