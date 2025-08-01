@@ -1,63 +1,92 @@
-const axios = require('axios');
+const axios = require("axios");
+const { getStreamFromURL } = global.utils;
 
-const baseApiUrl = async () => {
-  const base = await axios.get(
-    `https://raw.githubusercontent.com/Blankid018/D1PT0/main/baseApiUrl.json`
-  );
-  return base.data.api;
+const models = {
+  "1": "Anime Premium V2",
+  "2": "Cartoon Premium",
+  "3": "Anime Style: Maid Outfit",
+  "4": "Anime Style: Beach Babe",
+  "5": "Anime Style: Sweet Fantasy",
+  "6": "Anime Style: Love Story Comic",
+  "7": "Anime Style: High School Memories",
+  "8": "Anime Style: Festive Christmas",
+  "9": "Anime Art: Pirate Adventure ( One Piece )",
+  "10": "Anime Art: Pop Star Sensation ( Oshi no Ko )",
+  "11": "Anime Art: Ninja Legacy ( Naruto )",
+  "12": "Anime Art: Super Warriors ( DBZ )",
+  "13": "Anime Art: Dark Notebook ( Death Note )",
+  "14": "Anime Art: Eternal Battle ( Bleach )",
+  "15": "Anime Art: Wings of Destiny ( AOT )",
+  "16": "Anime Art: Mystic Magic (Jujutsu Kaisen)",
+  "17": "Anime Art: Tennis Prodigy (ThePrince of Tennis)",
+  "18": "Anime Art: Demon Slayer Chronicles (Demon Slayer)",
+  "19": "Anime Art: Alchemical Adventures (Fullmetal Alchemist)",
+  "20": "Anime Art: Heroic Future (My Hero Academia)",
+  "21": "Anime Art: Prehistoric Quest (Dr Stone)",
+  "22": "Anime Art: Court Clash (Haikyuu)",
+  "23": "Anime Style: Ghibli V1",
+  "24": "Anime Style: Ghibli V2",
+  "25": "Anime Style: Webtoon",
 };
 
 module.exports = {
   config: {
     name: "art",
-    version: "1.6.9",
-    author: "Nazrul",
+    version: "1.0",
+    author: "SiAM",
+    countDown: 15,
     role: 0,
-    description: "{pn} - Enhance your photos with artful transformations!",
-    category: "art",
-    countDown: 5,
-    guide: { 
-      en: "{pn} reply to an image"
+    shortDescription: "Turn yourself into an anime character!",
+    longDescription: "Apply an anime-style filter to an image to turn it into an anime character.",
+    category: "Image",
+    guide: {
+      en: "{pn} [modelNumber]\nexample: {pn} 2\n\nHere are the available models:\n" + Object.entries(models).map(([number, name]) => `❏ ${number} : ${name}`).join("\n")
     }
   },
-  onStart: async function ({ message, event, args, api }) {
+
+  onStart: async function ({ api, args, message, event, commandName }) {
     try {
-      const cp = ["bal","zombie","anime","ghost", "watercolor", "sketch", "abstract", "cartoon","monster"];
-      const prompts = args[0] || cp[Math.floor(Math.random() * cp.length)];
+      const [modelNumber] = args;
 
-      const msg = await api.sendMessage("🎨 Processing your image, please wait...", event.threadID);
+      if (!modelNumber) {
+        const list = Object.entries(models)
+          .map(([number, name]) => `❏ ${number} : ${name}`)
+          .join("\n");
 
-      let photoUrl = "";
-
-      if (event.type === "message_reply" && event.messageReply?.attachments?.length > 0) {
-        photoUrl = event.messageReply.attachments[0].url;
-      } else if (args.length > 0) {
-        photoUrl = args.join(' ');
+        return message.reply(
+          `🖼️ 𝗔𝗿𝘁 𝗠𝗼𝗱𝗲𝗹 𝗟𝗶𝘀𝘁 🎨\n\n${list}\n\nUse command like:\n${commandName} [modelNumber]\nExample: ${commandName} 2`
+        );
       }
 
-      if (!photoUrl) {
-        return api.sendMessage("🔰 Please reply to an image or provide a URL!", event.threadID, event.messageID);
+      if (isNaN(modelNumber) || !models[modelNumber]) {
+        return message.reply("Invalid model number. Please provide a valid model number from the list.");
       }
 
-      const response = await axios.get(`${await baseApiUrl()}/art2?url=${encodeURIComponent(photoUrl)}&prompt=${encodeURIComponent(prompts)}`);
-
-      if (!response.data || !response.data.imageUrl) {
-        await api.sendMessage("⚠ Failed to return a valid image URL. Please try again.", event.threadID, event.messageID);
-        return;
+      if (!(event.type === "message_reply" && event.messageReply.attachments && event.messageReply.attachments.length > 0 && ["photo", "sticker"].includes(event.messageReply.attachments[0].type))) {
+        return message.reply("Please reply to an image to apply the anime filter.⚠");
       }
 
-      const imageUrl = response.data.imageUrl;
-      await api.unsendMessage(msg.messageID);
+      const imageUrl = event.messageReply.attachments[0].url;
+      const encodedImageUrl = encodeURIComponent(imageUrl);
 
-      const imageStream = await axios.get(imageUrl, { responseType: 'stream' });
+      const processingMessage = await message.reply(`Applying the Filter, please wait...\nModel using: ${modelNumber} (${models[modelNumber]}) ⌛`);
 
-      await api.sendMessage({ 
-        body: `Here's your artful image! 🎨`, 
-        attachment: imageStream.data 
-      }, event.threadID, event.messageID);
+      const response = await axios.get(`https://simo-aiart.onrender.com/generate?imageUrl=${encodedImageUrl}&modelNumber=${modelNumber}`);
+
+      const { imageUrl: generatedImageUrl } = response.data;
+      const Stream = await getStreamFromURL(generatedImageUrl);
+
+      await message.reply({
+        body: `Anime Art applied ✨\nModel used: ${modelNumber} (${models[modelNumber]})`,
+        attachment: Stream,
+      });
+
+      message.reaction("✅", event.messageID);
+      message.unsend(processingMessage.messageID);
 
     } catch (error) {
-      await api.sendMessage(`Error: ${error.message}`, event.threadID, event.messageID);
+      console.error(error);
+      message.reply("Failed to apply the Anime filter.⚠");
     }
   }
 };
