@@ -1,36 +1,34 @@
-const fs = require("fs-extra");
+const fs = require("fs");
 const path = __dirname + "/../../cache/nicknamelock.json";
 
 module.exports.config = {
-  name: "locknickname",
-  version: "1.0",
-  author: "Raj",
+  name: "nicknamelock",
   eventType: ["log:user-nickname", "log:thread-name"],
-  description: "Auto revert nickname or group name changes"
+  version: "1.0.0",
+  credits: "Raj",
+  description: "Reverts nickname/group name if lock is enabled"
 };
 
-module.exports.run = async function ({ api, event }) {
-  const threadID = event.threadID;
-  const senderID = event.author;
+module.exports.run = async function ({ api, event, Threads }) {
   if (!fs.existsSync(path)) return;
   const data = JSON.parse(fs.readFileSync(path));
-  if (!data[threadID] || !data[threadID].nicknameLock) return;
+  if (!data.enabled) return;
 
-  const threadData = data[threadID];
+  const threadInfo = await Threads.getData(event.threadID);
+  const groupName = threadInfo.threadName;
 
-  // If sender is whitelisted admin, allow changes
-  if (threadData.adminWhitelist.includes(senderID)) return;
-
-  // Handle nickname change
+  // Lock nickname
   if (event.logMessageType === "log:user-nickname") {
     const userID = event.logMessageData.participant_id;
-    const oldNickname = threadData.lockedNicknames[userID] || null;
-    api.changeNickname(oldNickname || "", threadID, userID);
+    if (!data.allowed.includes(userID)) {
+      api.changeNickname(event.logMessageData.nickname || "", event.threadID, userID);
+    }
   }
 
-  // Handle group name change
+  // Lock group name
   if (event.logMessageType === "log:thread-name") {
-    const oldName = threadData.lockedGroupName;
-    api.setTitle(oldName, threadID);
+    if (!data.allowed.includes(event.author)) {
+      api.setTitle(data.groupName || groupName, event.threadID);
+    }
   }
 };
