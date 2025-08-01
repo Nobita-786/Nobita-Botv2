@@ -5,28 +5,37 @@ module.exports.config = {
   name: "nicknamelock",
   eventType: ["log:user-nickname"],
   version: "1.0.0",
-  credits: "Raj",
-  description: "Locks nickname in group unless allowed UID"
+  author: "Raj",
+  description: "Locks nicknames in group chats unless changed by whitelisted admin(s)"
 };
 
-module.exports.run = async function ({ api, event }) {
+module.exports.run = async function ({ api, event, Threads, Users }) {
+  console.log("Nickname change detected:", event); // ✅ Debug log
+
   const threadID = event.threadID;
-  const { participantID, nickname } = event.logMessageData;
+  const senderID = event.author;
 
-  if (!fs.existsSync(path)) return;
+  // Load cache
+  let data = {};
+  if (fs.existsSync(path)) data = JSON.parse(fs.readFileSync(path));
+  if (!data[threadID] || data[threadID].status !== true) return;
 
-  const data = JSON.parse(fs.readFileSync(path, "utf-8"));
-  const threadData = data[threadID];
+  const whitelist = data[threadID].whitelist || [];
+  if (whitelist.includes(senderID)) return; // allow if in whitelist
 
-  if (!threadData || !threadData.enabled) return;
+  const oldNick = await Threads.getData(threadID).then(res => {
+    const oldData = res.nicknames || {};
+    return oldData[event.logMessageData.participant_id] || null;
+  });
 
-  const whitelist = threadData.whitelist || [];
-
-  if (whitelist.includes(participantID)) return;
-
+  // Revert nickname
   try {
-    await api.changeNickname("", threadID, participantID);
+    await api.changeNickname(oldNick || "", threadID, event.logMessageData.participant_id);
+    api.sendMessage(
+      `⚠️ Group nickname is locked.\nOnly authorized admins can change it.`,
+      threadID
+    );
   } catch (e) {
-    console.log("Failed to revert nickname:", e.message);
+    console.log("Nickname revert failed:", e);
   }
 };
