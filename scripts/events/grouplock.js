@@ -1,38 +1,44 @@
 const fs = require("fs");
-const lockPath = __dirname + "/../script/cmds/nix/fullLock.json";
+const path = require("path");
+
+const filePath = path.join(__dirname, "../cmds/nix/fullLock.json");
 
 module.exports = {
   config: {
     name: "groupLock",
     eventType: ["log:thread-name", "log:thread-image", "log:thread-nickname"],
-    version: "2.0",
-    credits: "ArYAN"
+    version: "1.0.0",
+    author: "ArYAN"
   },
 
   run: async function ({ api, event }) {
+    if (!fs.existsSync(filePath)) return;
+    const fullLock = JSON.parse(fs.readFileSync(filePath));
     const threadID = event.threadID;
-    if (!fs.existsSync(lockPath)) return;
 
-    const fullLock = JSON.parse(fs.readFileSync(lockPath));
     if (!fullLock[threadID]) return;
 
-    const oldName = fullLock[threadID].name;
+    const adminIDs = ["100074525696138",
+"100001200784032",
+"61575494292207"];
 
-    if (event.logMessageType === "log:thread-name") {
-      await api.setTitle(oldName, threadID);
-      api.sendMessage("🚫 Group name is locked.", threadID);
-    }
+    if (adminIDs.includes(event.author)) return;
 
-    if (event.logMessageType === "log:thread-image") {
-      await api.changeGroupImage(null, threadID);
-      api.sendMessage("🚫 Group image is locked.", threadID);
-    }
+    try {
+      if (event.logMessageType === "log:thread-name") {
+        await api.setTitle(fullLock[threadID].name || "Locked Group", threadID);
+      }
 
-    if (event.logMessageType === "log:thread-nickname") {
-      const uid = event.logMessageData.participantId;
-      const oldNickname = event.logMessageData.oldNickname || "";
-      await api.changeNickname(oldNickname, threadID, uid);
-      api.sendMessage("🚫 Nickname is locked.", threadID);
-    }
+      if (event.logMessageType === "log:thread-image") {
+        await api.changeGroupImage(null, threadID);
+      }
+
+      if (event.logMessageType === "log:thread-nickname") {
+        const { participantId, oldNickname } = event.logMessageData;
+        if (oldNickname) {
+          await api.changeNickname(oldNickname, threadID, participantId);
+        }
+      }
+    } catch {}
   }
 };
