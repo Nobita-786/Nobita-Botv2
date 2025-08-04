@@ -1,54 +1,62 @@
-const fs = require("fs");
+const fs = require("fs-extra");
 const path = __dirname + "/../../cache/fulllock.json";
+
+if (!fs.existsSync(path)) fs.writeFileSync(path, "{}");
 
 module.exports = {
   config: {
     name: "fulllock",
     version: "1.0",
-    author: "Raj",
-    countDown: 5,
-    role: 1,
-    category: "events" // ✅ fix
+    description: "Lock group name, nickname, and image",
+    category: "events"
   },
 
-  onStart: async function ({ message, args, event }) {
-    const data = fs.existsSync(path) ? JSON.parse(fs.readFileSync(path, "utf-8")) : {};
-    const threadID = event.threadID;
+  onStart({ api, event, threadsData, message }) {
+    const { threadID, senderID, body } = event;
+    const data = JSON.parse(fs.readFileSync(path));
+    const isLocked = data[threadID];
 
-    if (args[0] === "on") {
+    if (body === "#fulllock on") {
       data[threadID] = true;
       fs.writeFileSync(path, JSON.stringify(data, null, 2));
-      message.reply("✅ Full Lock Mode enabled for this group.");
-    } else if (args[0] === "off") {
+      return message.reply("✅ Full lock enabled for this group.");
+    }
+
+    if (body === "#fulllock off") {
       delete data[threadID];
       fs.writeFileSync(path, JSON.stringify(data, null, 2));
-      message.reply("❎ Full Lock Mode disabled for this group.");
-    } else {
-      message.reply("📌 Usage:\nfullLock on\nfullLock off");
+      return message.reply("❌ Full lock disabled for this group.");
     }
   },
 
-  onEvent: async function ({ event, api }) {
-    const data = fs.existsSync(path) ? JSON.parse(fs.readFileSync(path, "utf-8")) : {};
-    const threadID = event.threadID;
-    const senderID = event.senderID;
+  async onEvent({ api, event }) {
+    const { threadID, logMessageType, logMessageData, senderID } = event;
+    const fullLockData = JSON.parse(fs.readFileSync(path));
 
-    if (!data[threadID]) return;
+    if (!fullLockData[threadID]) return;
 
-    if (event.logMessageType === "log:thread-name") {
-      const threadInfo = await api.getThreadInfo(threadID);
-      const oldName = threadInfo.name || "Locked Group";
+    const threadInfo = await api.getThreadInfo(threadID);
+    const admins = threadInfo.adminIDs.map(e => e.id);
+    const isAdmin = admins.includes(senderID);
+
+    if (isAdmin) return;
+
+    // Lock nickname
+    if (logMessageType === "log:user-nickname") {
+      const targetID = logMessageData.participant_id;
+      const oldName = logMessageData.nickname || " ";
+      api.changeNickname(oldName, threadID, targetID);
+    }
+
+    // Lock group name
+    if (logMessageType === "log:thread-name") {
+      const oldName = threadInfo.threadName;
       api.setTitle(oldName, threadID);
     }
 
-    if (event.logMessageType === "log:thread-nickname") {
-      const { nickname, participant_id } = event.logMessageData;
-      if (nickname && participant_id)
-        api.changeNickname("⛔", threadID, participant_id);
-    }
-
-    if (event.logMessageType === "log:thread-icon") {
-      api.changeThreadIcon("🎯", threadID);
+    // Lock group image
+    if (logMessageType === "log:thread-image") {
+      api.removeUserFromGroup(senderID, threadID);
     }
   }
 };
