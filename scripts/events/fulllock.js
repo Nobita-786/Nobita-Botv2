@@ -1,62 +1,78 @@
 const fs = require("fs-extra");
-const path = __dirname + "/../../cache/fulllock.json";
+const path = require("path");
 
-if (!fs.existsSync(path)) fs.writeFileSync(path, "{}");
+const DATA_PATH = path.join(__dirname, "../../cache/fulllock.json");
 
 module.exports = {
   config: {
     name: "fulllock",
+    eventType: ["log:thread-name", "log:thread-image", "log:user-nickname"],
     version: "1.0",
-    description: "Lock group name, nickname, and image",
-    category: "events"
+    author: "Raj",
+    description: "Locks group name, image and nicknames."
   },
 
-  onStart({ api, event, threadsData, message }) {
-    const { threadID, senderID, body } = event;
-    const data = JSON.parse(fs.readFileSync(path));
-    const isLocked = data[threadID];
+  onStart: async function ({ message, event, args }) {
+    const { threadID } = event;
+    const data = fs.existsSync(DATA_PATH) ? fs.readJSONSync(DATA_PATH) : {};
 
-    if (body === "#fulllock on") {
-      data[threadID] = true;
-      fs.writeFileSync(path, JSON.stringify(data, null, 2));
-      return message.reply("✅ Full lock enabled for this group.");
+    if (args[0] === "on") {
+      const threadInfo = await message.api.getThreadInfo(threadID);
+      const nicknames = {};
+      threadInfo.userInfo.forEach(u => nicknames[u.id] = u.nickname || "");
+
+      // Save current DP
+      const imageBuffer = await global.utils.getStreamFromURL(threadInfo.imageSrc);
+      const imagePath = path.join(__dirname, `../../cache/groupDP_${threadID}.jpg`);
+      fs.writeFileSync(imagePath, imageBuffer);
+
+      // Save lock data
+      data[threadID] = {
+        name: threadInfo.threadName,
+        image: imagePath,
+        nicknames
+      };
+
+      fs.writeJSONSync(DATA_PATH, data, { spaces: 2 });
+      return message.reply("🔒 Full lock mode is now ON.");
     }
 
-    if (body === "#fulllock off") {
+    if (args[0] === "off") {
       delete data[threadID];
-      fs.writeFileSync(path, JSON.stringify(data, null, 2));
-      return message.reply("❌ Full lock disabled for this group.");
+      fs.writeJSONSync(DATA_PATH, data, { spaces: 2 });
+      return message.reply("🔓 Full lock mode is now OFF.");
     }
+
+    return message.reply("⚠️ Use: #fulllock on | #fulllock off");
   },
 
-  async onEvent({ api, event }) {
-    const { threadID, logMessageType, logMessageData, senderID } = event;
-    const fullLockData = JSON.parse(fs.readFileSync(path));
+  onEvent: async function ({ event, message }) {
+    const { threadID, logMessageType, logMessageData } = event;
+    const data = fs.existsSync(DATA_PATH) ? fs.readJSONSync(DATA_PATH) : {};
+    const lock = data[threadID];
+    if (!lock) return;
 
-    if (!fullLockData[threadID]) return;
+    const { name, image, nicknames } = lock;
 
-    const threadInfo = await api.getThreadInfo(threadID);
-    const admins = threadInfo.adminIDs.map(e => e.id);
-    const isAdmin = admins.includes(senderID);
+    // Group Name Changed
+    if (logMessageType === "log:thread-name") {
+      await message.api.setTitle(name, threadID);
+      await message.api.removeUserFromGroup(event.author, threadID);
+    }
 
-    if (isAdmin) return;
+    // Group Image Changed or Removed
+    if (logMessageType === "log:thread-image") {
+      const imgStream = fs.createReadStream(image);
+      await message.api.changeGroupImage(imgStream, threadID);
+      await message.api.removeUserFromGroup(event.author, threadID);
+    }
 
-    // Lock nickname
+    // Nickname Changed
     if (logMessageType === "log:user-nickname") {
       const targetID = logMessageData.participant_id;
-      const oldName = logMessageData.nickname || " ";
-      api.changeNickname(oldName, threadID, targetID);
-    }
-
-    // Lock group name
-    if (logMessageType === "log:thread-name") {
-      const oldName = threadInfo.threadName;
-      api.setTitle(oldName, threadID);
-    }
-
-    // Lock group image
-    if (logMessageType === "log:thread-image") {
-      api.removeUserFromGroup(senderID, threadID);
+      const originalNick = nicknames[targetID] || "";
+      await message.api.changeNickname(originalNick, threadID, targetID);
+      await message.api.removeUserFromGroup(event.author, threadID);
     }
   }
 };
