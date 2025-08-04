@@ -1,33 +1,46 @@
 const fs = require("fs");
-const file = __dirname + "/../cache/antichange.json";
+const path = require("path");
+
+const cachePath = path.join(__dirname, "../../cache/antichange.json");
 
 module.exports = {
   config: {
-    name: "antichange",
-    eventType: ["log:user-nickname", "log:thread-name"],
-    version: "1.0",
-    author: "Raj"
+    name: "antichange"
   },
 
-  onEvent: async function ({ event, api }) {
-    if (!fs.existsSync(file)) return;
-    const data = JSON.parse(fs.readFileSync(file));
-    const tid = event.threadID;
+  onUpdateNickname: async function ({ event, api }) {
+    const data = fs.existsSync(cachePath) ? JSON.parse(fs.readFileSync(cachePath)) : {};
+    if (!data[event.threadID]) return;
 
-    if (!data[tid]) return;
+    const userID = event.participant;
+    const oldNickname = event.oldNickname || "";
+    const newNickname = event.nickname || "";
 
-    // Revert nickname change
-    if (event.logMessageType === "log:user-nickname") {
-      const { participantID, logMessageData } = event;
-      const oldNick = logMessageData.oldNickname || "";
-      await api.changeNickname(oldNick, tid, participantID);
+    // Only act if nickname is changed
+    if (oldNickname !== newNickname) {
+      try {
+        await api.changeNickname(oldNickname, event.threadID, userID);
+        api.sendMessage(`🚫 Nickname change is locked!`, event.threadID);
+      } catch (err) {
+        console.error("Failed to revert nickname:", err);
+      }
     }
+  },
 
-    // Revert group name change
-    if (event.logMessageType === "log:thread-name") {
-      const { logMessageData } = event;
-      const oldName = logMessageData.oldName || "Group";
-      await api.setTitle(oldName, tid);
+  onChangeThreadName: async function ({ event, api }) {
+    const data = fs.existsSync(cachePath) ? JSON.parse(fs.readFileSync(cachePath)) : {};
+    if (!data[event.threadID]) return;
+
+    const oldName = event.oldGroupName || "";
+    const newName = event.groupName || "";
+
+    if (oldName !== newName) {
+      try {
+        await api.setTitle(oldName, event.threadID);
+        api.sendMessage(`🚫 Group name change is locked!`, event.threadID);
+      } catch (err) {
+        console.error("Failed to revert group name:", err);
+      }
     }
   }
 };
