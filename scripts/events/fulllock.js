@@ -7,7 +7,8 @@ module.exports = {
     version: "1.0",
     author: "Raj",
     countDown: 5,
-    role: 1
+    role: 1,
+    category: "events" // ✅ fix
   },
 
   onStart: async function ({ message, args, event }) {
@@ -32,26 +33,22 @@ module.exports = {
     const threadID = event.threadID;
     const senderID = event.senderID;
 
-    // Check if this group is locked
     if (!data[threadID]) return;
 
-    // Revert group name if changed
     if (event.logMessageType === "log:thread-name") {
       const threadInfo = await api.getThreadInfo(threadID);
       const oldName = threadInfo.name || "Locked Group";
       api.setTitle(oldName, threadID);
     }
 
-    // Revert nicknames
     if (event.logMessageType === "log:thread-nickname") {
       const { nickname, participant_id } = event.logMessageData;
       if (nickname && participant_id)
         api.changeNickname("⛔", threadID, participant_id);
     }
 
-    // Revert image
     if (event.logMessageType === "log:thread-icon") {
-      api.changeThreadIcon("🎯", threadID); // Set back to some locked emoji
+      api.changeThreadIcon("🎯", threadID);
     }
   }
 };
