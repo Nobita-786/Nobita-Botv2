@@ -1,17 +1,16 @@
 const fs = require("fs-extra");
 const path = __dirname + "/../../cache/fulllock.json";
 
-// अगर cache file नहीं है तो create कर दो
 if (!fs.existsSync(path)) fs.writeJsonSync(path, {});
 
 module.exports = {
   config: {
     name: "fulllock",
     eventType: ["log:thread-name", "log:thread-image", "log:user-nickname"],
-    version: "1.0",
+    version: "1.1",
     author: "Raj",
     description: "Locks group name, image and nicknames.",
-    category: "events" // ✅ यही important था
+    category: "events"
   },
 
   onStart: async function ({ message, event, threadsData }) {
@@ -20,13 +19,20 @@ module.exports = {
 
     if (!data[threadID]) {
       const threadInfo = await threadsData.get(threadID);
+
+      const nicknames = {};
+      for (const id in threadInfo.nicknames) {
+        nicknames[id] = threadInfo.nicknames[id] || "";
+      }
+
       data[threadID] = {
         name: threadInfo.threadName,
         image: threadInfo.threadImage,
-        nicknames: {}
+        nicknames
       };
+
       fs.writeJsonSync(path, data, { spaces: 2 });
-      return message.reply("✅ Full lock enabled for this group. Now name, dp, and nicknames are locked.");
+      return message.reply("✅ Full lock enabled for this group.\nNow name, DP, and nicknames are locked.");
     } else {
       delete data[threadID];
       fs.writeJsonSync(path, data, { spaces: 2 });
@@ -37,33 +43,35 @@ module.exports = {
   onEvent: async function ({ api, event }) {
     const threadID = event.threadID;
     const data = fs.readJsonSync(path);
-
-    if (!data[threadID]) return;
+    const lock = data[threadID];
+    if (!lock) return;
 
     // Group Name change revert
     if (event.logMessageType === "log:thread-name") {
-      const oldName = data[threadID].name;
+      const oldName = lock.name;
       if (event.logMessageData?.name && event.logMessageData.name !== oldName) {
-        api.setTitle(oldName, threadID);
+        await api.setTitle(oldName, threadID);
       }
     }
 
     // DP change revert
     if (event.logMessageType === "log:thread-image") {
-      const oldImage = data[threadID].image;
+      const oldImage = lock.image;
       if (oldImage) {
-        const imgStream = await global.utils.getStreamFromURL(oldImage);
-        api.changeGroupImage(imgStream, threadID);
+        try {
+          const imgStream = await global.utils.getStreamFromURL(oldImage);
+          await api.changeGroupImage(imgStream, threadID);
+        } catch (err) {
+          console.log("❌ Error reverting group image:", err.message);
+        }
       }
     }
 
     // Nickname change revert
     if (event.logMessageType === "log:user-nickname") {
-      const changedID = event.logMessageData.participant_id;
-      const nickname = data[threadID].nicknames[changedID];
-      if (nickname) {
-        api.changeNickname(nickname, threadID, changedID);
-      }
+      const targetID = event.logMessageData.participant_id;
+      const oldNick = lock.nicknames[targetID] || "";
+      await api.changeNickname(oldNick, threadID, targetID);
     }
   }
 };
