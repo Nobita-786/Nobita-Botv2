@@ -1,5 +1,5 @@
 const fs = require("fs-extra");
-const path = __dirname + "/../../cache/fulllock.json";
+const path = __dirname + "/../../cache/fulllock.json"; // ✅ सही path
 
 if (!fs.existsSync(path)) fs.writeJsonSync(path, {});
 
@@ -7,9 +7,9 @@ module.exports = {
   config: {
     name: "fulllock",
     eventType: ["log:thread-name", "log:thread-image", "log:user-nickname"],
-    version: "1.1",
+    version: "1.0",
     author: "Raj",
-    description: "Reverts group name, DP, and nickname if changed.",
+    description: "Reverts group name, dp, and nicknames.",
     category: "events"
   },
 
@@ -19,12 +19,14 @@ module.exports = {
     const lock = data[threadID];
     if (!lock) return;
 
+    // Group name change revert
     if (event.logMessageType === "log:thread-name") {
       if (event.logMessageData?.name !== lock.name) {
         api.setTitle(lock.name, threadID);
       }
     }
 
+    // Group image change revert
     if (event.logMessageType === "log:thread-image") {
       if (lock.image) {
         try {
@@ -36,6 +38,7 @@ module.exports = {
       }
     }
 
+    // Nickname revert
     if (event.logMessageType === "log:user-nickname") {
       const uid = event.logMessageData.participant_id;
       const oldNick = lock.nicknames?.[uid];
