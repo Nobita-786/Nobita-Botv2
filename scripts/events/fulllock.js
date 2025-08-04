@@ -9,35 +9,8 @@ module.exports = {
     eventType: ["log:thread-name", "log:thread-image", "log:user-nickname"],
     version: "1.1",
     author: "Raj",
-    description: "Locks group name, image and nicknames.",
+    description: "Reverts group name, DP, and nickname if changed.",
     category: "events"
-  },
-
-  onStart: async function ({ message, event, threadsData }) {
-    const threadID = event.threadID;
-    const data = fs.readJsonSync(path);
-
-    if (!data[threadID]) {
-      const threadInfo = await threadsData.get(threadID);
-
-      const nicknames = {};
-      for (const id in threadInfo.nicknames) {
-        nicknames[id] = threadInfo.nicknames[id] || "";
-      }
-
-      data[threadID] = {
-        name: threadInfo.threadName,
-        image: threadInfo.threadImage,
-        nicknames
-      };
-
-      fs.writeJsonSync(path, data, { spaces: 2 });
-      return message.reply("✅ Full lock enabled for this group.\nNow name, DP, and nicknames are locked.");
-    } else {
-      delete data[threadID];
-      fs.writeJsonSync(path, data, { spaces: 2 });
-      return message.reply("🔓 Full lock disabled for this group.");
-    }
   },
 
   onEvent: async function ({ api, event }) {
@@ -46,32 +19,29 @@ module.exports = {
     const lock = data[threadID];
     if (!lock) return;
 
-    // Group Name change revert
     if (event.logMessageType === "log:thread-name") {
-      const oldName = lock.name;
-      if (event.logMessageData?.name && event.logMessageData.name !== oldName) {
-        await api.setTitle(oldName, threadID);
+      if (event.logMessageData?.name !== lock.name) {
+        api.setTitle(lock.name, threadID);
       }
     }
 
-    // DP change revert
     if (event.logMessageType === "log:thread-image") {
-      const oldImage = lock.image;
-      if (oldImage) {
+      if (lock.image) {
         try {
-          const imgStream = await global.utils.getStreamFromURL(oldImage);
-          await api.changeGroupImage(imgStream, threadID);
-        } catch (err) {
-          console.log("❌ Error reverting group image:", err.message);
+          const img = await global.utils.getStreamFromURL(lock.image);
+          api.changeGroupImage(img, threadID);
+        } catch (e) {
+          console.log("❌ Error reverting image:", e.message);
         }
       }
     }
 
-    // Nickname change revert
     if (event.logMessageType === "log:user-nickname") {
-      const targetID = event.logMessageData.participant_id;
-      const oldNick = lock.nicknames[targetID] || "";
-      await api.changeNickname(oldNick, threadID, targetID);
+      const uid = event.logMessageData.participant_id;
+      const oldNick = lock.nicknames?.[uid];
+      if (typeof oldNick !== "undefined") {
+        api.changeNickname(oldNick, threadID, uid);
+      }
     }
   }
 };
