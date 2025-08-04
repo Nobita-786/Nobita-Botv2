@@ -1,46 +1,34 @@
-const fs = require("fs");
-const path = require("path");
-
-const cachePath = path.join(__dirname, "../../cache/antichange.json");
+const fs = require("fs-extra");
+const path = __dirname + "/../../cache/fulllock.json";
 
 module.exports = {
   config: {
-    name: "antichange"
+    name: "fulllock",
+    eventType: ["log:thread-name", "log:thread-image", "log:user-nickname"],
+    version: "1.0.0",
+    author: "Raj",
+    description: "Revert group name, image, and nicknames if changed by non-admins"
   },
 
-  onUpdateNickname: async function ({ event, api }) {
-    const data = fs.existsSync(cachePath) ? JSON.parse(fs.readFileSync(cachePath)) : {};
-    if (!data[event.threadID]) return;
+  onStart: async function ({ event, threadsData, api }) {
+    if (!fs.existsSync(path)) return;
+    const data = fs.readJsonSync(path);
+    const { threadID, author, type } = event;
 
-    const userID = event.participant;
-    const oldNickname = event.oldNickname || "";
-    const newNickname = event.nickname || "";
+    if (!data[threadID]) return;
 
-    // Only act if nickname is changed
-    if (oldNickname !== newNickname) {
-      try {
-        await api.changeNickname(oldNickname, event.threadID, userID);
-        api.sendMessage(`🚫 Nickname change is locked!`, event.threadID);
-      } catch (err) {
-        console.error("Failed to revert nickname:", err);
-      }
-    }
-  },
+    const threadData = await threadsData.get(threadID);
+    const isAdmin = threadData.adminIDs.includes(author);
+    if (isAdmin) return;
 
-  onChangeThreadName: async function ({ event, api }) {
-    const data = fs.existsSync(cachePath) ? JSON.parse(fs.readFileSync(cachePath)) : {};
-    if (!data[event.threadID]) return;
-
-    const oldName = event.oldGroupName || "";
-    const newName = event.groupName || "";
-
-    if (oldName !== newName) {
-      try {
-        await api.setTitle(oldName, event.threadID);
-        api.sendMessage(`🚫 Group name change is locked!`, event.threadID);
-      } catch (err) {
-        console.error("Failed to revert group name:", err);
-      }
+    // Revert based on event type
+    if (type === "log:thread-name") {
+      await api.setTitle(threadData.threadName, threadID);
+    } else if (type === "log:user-nickname") {
+      const nickInfo = event.logMessageData;
+      await api.changeNickname(nickInfo.nickname, threadID, nickInfo.participant_id);
+    } else if (type === "log:thread-image") {
+      await api.removeUserFromGroup(api.getCurrentUserID(), threadID); // Optional: Or revert image if backed up
     }
   }
 };
