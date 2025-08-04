@@ -1,35 +1,48 @@
-const fs = require('fs');
-const path = require('path');
+const fs = require("fs-extra");
+const path = __dirname + "/../../cache/fulllock.json";
 
-const dataPath = path.join(__dirname, '../cache/antichange.json');
-if (!fs.existsSync(dataPath)) fs.writeFileSync(dataPath, JSON.stringify({}));
+if (!fs.existsSync(path)) fs.writeJsonSync(path, {});
 
-module.exports.config = {
-  name: "antichange",
-  version: "1.0.0",
-  hasPermssion: 1, // Admin only
-  credits: "Raj",
-  description: "Lock or unlock group name, image, and nicknames",
-  commandCategory: "group",
-  usages: "[on/off]",
-  cooldowns: 5
-};
+module.exports = {
+  config: {
+    name: "fulllock",
+    version: "1.0",
+    author: "Raj",
+    description: "Enable or disable full lock in group.",
+    usage: "#fulllock on | off",
+    cooldown: 3,
+    permissions: [1],
+    category: "group"
+  },
 
-module.exports.run = async ({ api, event, args }) => {
-  const { threadID, messageID } = event;
-  const data = JSON.parse(fs.readFileSync(dataPath));
+  onStart: async function ({ api, event, args, message }) {
+    const threadID = event.threadID;
+    const data = fs.readJsonSync(path) || {};
 
-  if (!args[0] || !["on", "off"].includes(args[0].toLowerCase()))
-    return api.sendMessage("🛡️ Usage: antichange on/off", threadID, messageID);
+    if (args[0] === "on") {
+      const info = await api.getThreadInfo(threadID);
+      const nicknames = {};
+      for (const user of info.userInfo) {
+        const id = user.id;
+        nicknames[id] = info.nicknames?.[id] || "";
+      }
 
-  const status = args[0].toLowerCase();
-  if (status === "on") {
-    data[threadID] = true;
-    fs.writeFileSync(dataPath, JSON.stringify(data, null, 2));
-    api.sendMessage("🔒 Full lock mode enabled.\n\n- Group name is locked\n- Group image is locked\n- All nicknames are locked\n- Only bot owner, admin, or supporter can use commands", threadID, messageID);
-  } else {
-    delete data[threadID];
-    fs.writeFileSync(dataPath, JSON.stringify(data, null, 2));
-    api.sendMessage("🔓 Full lock mode disabled.", threadID, messageID);
+      data[threadID] = {
+        name: info.threadName,
+        image: info.imageSrc || null,
+        nicknames
+      };
+
+      fs.writeJsonSync(path, data, { spaces: 2 });
+      return message.reply("✅ Full Lock is now ON. Name, DP, and nicknames will be reverted.");
+    }
+
+    if (args[0] === "off") {
+      delete data[threadID];
+      fs.writeJsonSync(path, data, { spaces: 2 });
+      return message.reply("🔓 Full Lock is now OFF.");
+    }
+
+    return message.reply("❗Usage: #fulllock on | off");
   }
 };
