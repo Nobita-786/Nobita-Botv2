@@ -7,58 +7,50 @@ module.exports = {
     name: "fulllock",
     version: "1.0",
     author: "Raj",
-    description: "Event to enforce full group lock",
-    dependencies: {}
+    description: "Full lock: revert name, nick, image, block messages",
+    category: "event"
   },
 
-  onEvent: async function ({ event, api, usersData, threadsData }) {
+  onEvent: async function ({ event, api, usersData }) {
     if (!fs.existsSync(path)) return;
+
     const data = JSON.parse(fs.readFileSync(path));
     const threadID = event.threadID;
     if (!data[threadID]) return;
 
-    // Get thread info
-    let threadInfo;
-    try {
-      threadInfo = await api.getThreadInfo(threadID);
-    } catch (e) {
-      return;
-    }
-
+    const threadInfo = await api.getThreadInfo(threadID);
     const admins = threadInfo.adminIDs.map(a => a.id);
     const isAdmin = admins.includes(event.senderID);
 
-    // 🔒 Block non-admin messages
+    // 🚫 Block messages from non-admins
     if (event.body && !isAdmin) {
       return api.sendMessage("🔒 Group is in full lock. You cannot send messages.", threadID, event.messageID);
     }
 
-    // 🔁 Revert Nickname Change
+    // 🔁 Revert nickname change
     if (event.logMessageType === "log:thread-nickname") {
       const changedID = event.logMessageData.participant_id;
-      const oldNicknames = data[threadID].nicknames || {};
-      const oldName = oldNicknames[changedID] || (await usersData.get(changedID)).name;
-      try {
-        api.changeNickname(oldName, threadID, changedID);
-      } catch (e) {}
+      const oldName = threadInfo.nicknames?.[changedID] || (await usersData.get(changedID)).name;
+      api.changeNickname(oldName, threadID, changedID);
     }
 
-    // 🔁 Revert Group Name Change
+    // 🔁 Revert group name
     if (event.logMessageType === "log:thread-name") {
-      const originalName = data[threadID].groupName || threadInfo.threadName;
-      try {
-        setTimeout(() => api.setTitle(originalName, threadID), 2000);
-      } catch (e) {}
+      const oldName = data[threadID].groupName || "Locked Group";
+      setTimeout(() => api.setTitle(oldName, threadID), 1000);
     }
 
-    // 🔁 Revert Group Image (DP) Change
+    // 🔁 Revert group image
     if (event.logMessageType === "log:thread-image") {
-      const imageUrl = data[threadID].groupImage;
-      if (!imageUrl) return;
-      try {
-        const imageStream = await axios.get(imageUrl, { responseType: "stream" });
-        api.changeGroupImage(imageStream.data, threadID);
-      } catch (e) {}
+      const oldImageURL = data[threadID].groupImage;
+      if (oldImageURL) {
+        try {
+          const image = await axios.get(oldImageURL, { responseType: "stream" });
+          api.changeGroupImage(image.data, threadID);
+        } catch (err) {
+          console.error("Image revert failed:", err);
+        }
+      }
     }
   }
 };
