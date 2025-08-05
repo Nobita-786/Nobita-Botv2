@@ -1,73 +1,81 @@
 const axios = require("axios");
+const fs = require("fs-extra");
+const path = require("path");
+const FormData = require("form-data");
 
 module.exports = {
   config: {
-    name: "imgur",
-    aliases: [],
-    version: "1.1",
-    author: "Nazrul(fixed by Raj)",
+    name: "upload",
+    version: "3.0",
+    author: "Raj",
     countDown: 5,
     role: 0,
-    shortDescription: "Upload media to Imgur",
-    longDescription: "Upload one or more images/videos to Imgur. Use 'imgur all' to upload multiple.",
+    shortDescription: {
+      en: "Upload image/video or all attachments to Catbox"
+    },
+    longDescription: {
+      en: "Upload any replied image/video or use 'upload all' to upload multiple attachments at once to Catbox.moe (permanent URLs)"
+    },
     category: "tools",
     guide: {
-      en: "{pn} (reply to image/video)\n{pn} all (reply to multiple attachments)"
+      en: "Reply to image/video and type: {pn}\nOr use: {pn} all"
     }
   },
 
-  onStart: async function ({ api, event, args }) {
-    const attachments = event.messageReply?.attachments || event.attachments;
+  onStart: async function ({ message, event, args }) {
+    const isAll = args[0] === "all";
+    const reply = event.messageReply;
 
-    if (!attachments || attachments.length === 0) {
-      return api.sendMessage("❌ | Please reply to one or more images/videos.", event.threadID, event.messageID);
-    }
+    if (!reply || !reply.attachments || reply.attachments.length === 0)
+      return message.reply("❌ Please reply to one or more images/videos.");
 
-    // Get API URL
-    let apiUrl;
-    try {
-      const { data } = await axios.get("https://raw.githubusercontent.com/nazrul4x/Noobs/main/Apis.json");
-      apiUrl = data.csb;
-    } catch (e) {
-      return api.sendMessage("❌ | Failed to fetch Imgur API URL.", event.threadID, event.messageID);
-    }
+    const attachments = reply.attachments;
+    const validTypes = ["photo", "video", "animated_image"];
+    const uploads = [];
 
-    // If user typed "imgur all"
-    if (args[0] === "all") {
-      const links = [];
+    const workingAttachments = isAll ? attachments : [attachments[0]];
 
-      for (const item of attachments) {
-        if (!item.url) continue;
+    message.reply(`📤 Uploading ${workingAttachments.length} file(s), please wait...`);
 
-        try {
-          const res = await axios.get(`${apiUrl}/nazrul/imgur?link=${encodeURIComponent(item.url)}`);
-          if (res.data?.uploaded?.image) {
-            links.push(res.data.uploaded.image);
-          } else {
-            links.push("❌ Failed to upload one item.");
-          }
-        } catch (err) {
-          links.push("❌ Error uploading one item.");
-        }
+    for (let i = 0; i < workingAttachments.length; i++) {
+      const file = workingAttachments[i];
+      if (!validTypes.includes(file.type)) {
+        uploads.push(`❌ File ${i + 1}: Not supported type (${file.type})`);
+        continue;
       }
 
-      const resultText = links.map((l, i) => `${i + 1}. ${l}`).join("\n");
-      return api.sendMessage(`✅ Uploaded to Imgur:\n\n${resultText}`, event.threadID, event.messageID);
+      // Determine extension
+      let ext = ".jpg";
+      if (file.type === "video") ext = ".mp4";
+      else if (file.type === "animated_image") ext = ".gif";
+      else if (file.url.includes(".png")) ext = ".png";
 
-    } else {
-      // Default: only first image
-      const one = attachments[0];
+      const tempPath = path.join(__dirname, "cache", `upload_${Date.now()}_${i}${ext}`);
       try {
-        const res = await axios.get(`${apiUrl}/nazrul/imgur?link=${encodeURIComponent(one.url)}`);
-        if (res.data?.uploaded?.image) {
-          return api.sendMessage(`✅ | Uploaded to Imgur:\n${res.data.uploaded.image}`, event.threadID, event.messageID);
-        } else {
-          return api.sendMessage("❌ | Failed to upload to Imgur.", event.threadID, event.messageID);
-        }
-      } catch (e) {
-        console.error("Imgur error:", e);
-        return api.sendMessage("⚠️ | Error occurred while uploading.", event.threadID, event.messageID);
+        const res = await axios.get(file.url, { responseType: "arraybuffer" });
+        fs.writeFileSync(tempPath, res.data);
+
+        const form = new FormData();
+        form.append("reqtype", "fileupload");
+        form.append("fileToUpload", fs.createReadStream(tempPath));
+
+        const uploadRes = await axios.post("https://catbox.moe/user/api.php", form, {
+          headers: form.getHeaders()
+        });
+
+        fs.unlinkSync(tempPath);
+
+        if (uploadRes.data.includes("https://"))
+          uploads.push(`✅ File ${i + 1}: ${uploadRes.data}`);
+        else
+          uploads.push(`❌ File ${i + 1}: Upload failed.`);
+
+      } catch (err) {
+        console.error(err);
+        uploads.push(`❌ File ${i + 1}: Error uploading.`);
       }
     }
+
+    return message.reply(uploads.join("\n"));
   }
 };
