@@ -4,41 +4,39 @@ const path = __dirname + "/../cmds/cache/fulllock.json";
 module.exports = {
   config: {
     name: "fulllock",
-    eventType: ["log:thread-name", "log:user-nickname"],
-    category: "group"
+    eventType: ["log:thread-name", "log:thread-nickname"]
   },
 
-  onEvent: async function ({ event, api }) {
-    if (!fs.existsSync(path)) return;
-    let data = JSON.parse(fs.readFileSync(path));
-    if (!data[event.threadID]) return;
+  onStart: async function ({ event, api, threadsData, usersData }) {
+    const threadID = event.threadID;
+    const senderID = event.author;
 
-    const allowed = data[event.threadID].allowed || [];
-    const author = String(event.author);
-    
-    // ✅ Group Name Revert
-    if (event.logMessageType === "log:thread-name") {
-      if (allowed.includes(author)) return;
-      const oldName = data[event.threadID].groupName;
-      if (!oldName) return;
+    // File check
+    if (!fs.existsSync(path)) fs.writeFileSync(path, JSON.stringify({}));
+    const data = JSON.parse(fs.readFileSync(path));
 
-      try {
-        await api.setTitle(oldName, event.threadID);
-      } catch (e) {}
+    if (!data[threadID] || data[threadID].status !== true) return;
+
+    const threadInfo = await api.getThreadInfo(threadID);
+
+    // Nickname change
+    if (event.logMessageType === "log:thread-nickname") {
+      const changedID = event.logMessageData.participant_id;
+
+      let oldNick = threadInfo.nicknames?.[changedID];
+
+      if (!oldNick) {
+        const user = await usersData.get(changedID);
+        oldNick = user.name;
+      }
+
+      await api.changeNickname(oldNick, threadID, changedID);
     }
 
-    // ✅ Nickname Revert
-    if (event.logMessageType === "log:user-nickname") {
-      if (allowed.includes(author)) return;
-      const nickData = data[event.threadID].nicknames || {};
-      const target = Object.keys(event.logMessageData).find(k => k !== "nickname");
-      const originalNick = nickData[target];
-
-      if (originalNick) {
-        try {
-          await api.changeNickname(originalNick, event.threadID, target);
-        } catch (e) {}
-      }
+    // Group name change
+    if (event.logMessageType === "log:thread-name") {
+      const oldName = data[threadID].groupName || threadInfo.threadName;
+      await api.setTitle(oldName, threadID);
     }
   }
 };
