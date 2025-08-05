@@ -6,39 +6,38 @@ module.exports = {
     name: "fulllock",
     version: "1.0",
     author: "Raj",
-    description: "Enable or disable full group lock",
+    countDown: 0,
+    role: 1,
+    shortDescription: "Lock group name and nicknames",
+    longDescription: "Prevents group name and nicknames from being changed",
     category: "group",
-    usage: "fulllock on/off",
-    cooldown: 3,
-    role: 1
+    guide: "{pn} on/off"
   },
 
-  onStart: async function ({ message, args, event }) {
-    if (!args[0]) return message.reply("⚠️ Usage: fulllock on/off");
+  onStart: async function ({ message, event, args, api }) {
+    const threadID = event.threadID;
 
-    let data = fs.existsSync(path) ? JSON.parse(fs.readFileSync(path)) : {};
-    const status = args[0].toLowerCase();
+    if (!fs.existsSync(path)) fs.writeFileSync(path, JSON.stringify({}));
+    const data = JSON.parse(fs.readFileSync(path));
 
-    if (status === "on") {
-      data.status = true;
-      data.groupName = event.threadName;
-      data.groupImage = (await global.api.getThreadInfo(event.threadID)).imageSrc;
-      data.nicknames = {};
-      const threadInfo = await global.api.getThreadInfo(event.threadID);
-      threadInfo.userInfo.forEach(user => {
-        data.nicknames[user.id] = threadInfo.nicknames[user.id] || "";
-      });
-      data.whitelist = [event.senderID]; // allow only bot owner
+    if (args[0] === "on") {
+      const info = await api.getThreadInfo(threadID);
+      data[threadID] = {
+        status: true,
+        groupName: info.threadName
+      };
       fs.writeFileSync(path, JSON.stringify(data, null, 2));
-      return message.reply("🔒 Full lock mode enabled!");
+      message.reply("✅ Full lock is now ON. Group name and nicknames will be protected.");
     }
 
-    if (status === "off") {
-      data.status = false;
+    else if (args[0] === "off") {
+      delete data[threadID];
       fs.writeFileSync(path, JSON.stringify(data, null, 2));
-      return message.reply("🔓 Full lock mode disabled.");
+      message.reply("❌ Full lock is now OFF. Group and nicknames are no longer locked.");
     }
 
-    message.reply("⚠️ Usage: fulllock on/off");
+    else {
+      message.reply("⚙️ Usage: fulllock on/off");
+    }
   }
 };
