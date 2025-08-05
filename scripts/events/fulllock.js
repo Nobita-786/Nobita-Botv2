@@ -1,57 +1,43 @@
 const fs = require("fs");
-const axios = require("axios");
 const path = __dirname + "/../cmds/cache/fulllock.json";
 
 module.exports = {
   config: {
     name: "fulllock",
-    version: "1.0",
-    author: "Raj",
-    description: "Event handler for full lock"
+    eventType: ["log:thread-name", "log:user-nickname"],
+    category: "group"
   },
 
-  handleEvent: async function ({ api, event }) {
+  onEvent: async function ({ event, api }) {
     if (!fs.existsSync(path)) return;
-    const data = JSON.parse(fs.readFileSync(path));
-    if (!data.status) return;
+    let data = JSON.parse(fs.readFileSync(path));
+    if (!data[event.threadID]) return;
 
-    const { threadID, senderID, type } = event;
-    const isWhitelisted = data.whitelist?.includes(senderID);
+    const allowed = data[event.threadID].allowed || [];
+    const author = String(event.author);
+    
+    // ✅ Group Name Revert
+    if (event.logMessageType === "log:thread-name") {
+      if (allowed.includes(author)) return;
+      const oldName = data[event.threadID].groupName;
+      if (!oldName) return;
 
-    // Ignore all messages and commands from non-whitelisted users
-    if (!isWhitelisted && type === "message") {
-      return api.setMessageReaction("❌", event.messageID, () => {}, true);
+      try {
+        await api.setTitle(oldName, event.threadID);
+      } catch (e) {}
     }
 
-    // Revert nickname if changed
-    if (type === "event" && event.logMessageType === "log:thread-name") {
-      if (!isWhitelisted && data.groupName) {
-        await api.setTitle(data.groupName, threadID);
-        return api.sendMessage("❌ Group name change not allowed!", threadID);
-      }
-    }
+    // ✅ Nickname Revert
+    if (event.logMessageType === "log:user-nickname") {
+      if (allowed.includes(author)) return;
+      const nickData = data[event.threadID].nicknames || {};
+      const target = Object.keys(event.logMessageData).find(k => k !== "nickname");
+      const originalNick = nickData[target];
 
-    // Revert group image if changed
-    if (type === "event" && event.logMessageType === "log:thread-image") {
-      if (!isWhitelisted && data.groupImage) {
+      if (originalNick) {
         try {
-          const img = (await axios.get(data.groupImage, { responseType: "stream" })).data;
-          await api.changeGroupImage(img, threadID);
-          return api.sendMessage("❌ Group image change not allowed!", threadID);
-        } catch (e) {
-          return;
-        }
-      }
-    }
-
-    // Revert nicknames if changed
-    if (type === "event" && event.logMessageType === "log:user-nickname") {
-      const changedID = event.logMessageData?.participant_id;
-      const originalNick = data.nicknames?.[changedID] || "";
-
-      if (!isWhitelisted && changedID && originalNick !== undefined) {
-        await api.changeNickname(originalNick, threadID, changedID);
-        return api.sendMessage("❌ Nickname change not allowed!", threadID);
+          await api.changeNickname(originalNick, event.threadID, target);
+        } catch (e) {}
       }
     }
   }
