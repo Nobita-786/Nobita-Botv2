@@ -13,23 +13,31 @@ module.exports = async function ({ api, event }) {
   const { author, logMessageData, logMessageType } = event;
   const whitelist = data[threadID].whitelist || [];
 
-  if (whitelist.includes(author)) return; // skip if author is allowed
-
   // nickname change
   if (logMessageType === "log:thread-nickname") {
     const targetID = logMessageData.participant_id;
-    const oldNick = logMessageData.nickname;
+    const newNick = logMessageData.nickname;
 
-    // revert nickname
-    api.changeNickname("", threadID, targetID, err => {
-      if (!err) {
-        api.sendMessage(`⛔ ${oldNick ? `"${oldNick}"` : "नया"} nickname बदलने की अनुमति नहीं है!`, threadID);
-      }
-    });
+    // check whitelist for both changer and target
+    if (whitelist.includes(author) || whitelist.includes(targetID)) return;
+
+    // original nickname locking (use participant ID as key)
+    const originalNicknames = data[threadID].originalNicknames || {};
+    const lockedNick = originalNicknames[targetID] ?? ""; // default empty if not set
+
+    if (newNick !== lockedNick) {
+      api.changeNickname(lockedNick, threadID, targetID, err => {
+        if (!err) {
+          api.sendMessage(`⛔ ${newNick ? `"${newNick}"` : "नया"} nickname बदलना मना है!`, threadID);
+        }
+      });
+    }
   }
 
   // group name change
   if (logMessageType === "log:thread-name") {
+    if (whitelist.includes(author)) return;
+
     const originalName = data[threadID].originalName;
     const newName = logMessageData.name;
 
