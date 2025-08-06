@@ -2,7 +2,7 @@ const fs = require("fs");
 const path = __dirname + "/../cache/nicknamelock.json";
 
 module.exports = async function ({ api, event }) {
-  if (event.logMessageType !== "log:thread-name" && event.logMessageType !== "log:thread-nickname") return;
+  if (!["log:thread-name", "log:thread-nickname"].includes(event.logMessageType)) return;
   if (!fs.existsSync(path)) return;
 
   const data = JSON.parse(fs.readFileSync(path));
@@ -17,16 +17,13 @@ module.exports = async function ({ api, event }) {
   if (logMessageType === "log:thread-nickname") {
     const targetID = logMessageData.participant_id;
     const newNick = logMessageData.nickname;
-
-    // check whitelist for both changer and target
     if (whitelist.includes(author) || whitelist.includes(targetID)) return;
 
-    // original nickname locking (use participant ID as key)
     const originalNicknames = data[threadID].originalNicknames || {};
-    const lockedNick = originalNicknames[targetID] ?? ""; // default empty if not set
+    const lockedNick = originalNicknames[targetID] ?? "";
 
     if (newNick !== lockedNick) {
-      api.changeNickname(lockedNick, threadID, targetID, err => {
+      api.changeNickname(lockedNick, threadID, targetID, (err) => {
         if (!err) {
           api.sendMessage(`⛔ ${newNick ? `"${newNick}"` : "नया"} nickname बदलना मना है!`, threadID);
         }
@@ -42,7 +39,7 @@ module.exports = async function ({ api, event }) {
     const newName = logMessageData.name;
 
     if (originalName && originalName !== newName) {
-      api.setTitle(originalName, threadID, err => {
+      api.setTitle(originalName, threadID, (err) => {
         if (!err) {
           api.sendMessage(`⛔ Group name बदलना allowed नहीं है! वापस "${originalName}" कर दिया गया।`, threadID);
         }
