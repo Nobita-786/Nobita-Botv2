@@ -1,56 +1,44 @@
 const fs = require("fs");
-const axios = require("axios");
-const path = __dirname + "/../cmds/cache/fulllock.json";
+const path = __dirname + "/../cache/nicknamelock.json";
 
-module.exports = {
-  config: {
-    name: "fulllock",
-    version: "1.0",
-    author: "Raj",
-    description: "Full lock: revert name, nick, image, block messages",
-    category: "event"
-  },
+module.exports = async function ({ api, event }) {
+  if (event.logMessageType !== "log:thread-name" && event.logMessageType !== "log:thread-nickname") return;
+  if (!fs.existsSync(path)) return;
 
-  onEvent: async function ({ event, api, usersData }) {
-    if (!fs.existsSync(path)) return;
+  const data = JSON.parse(fs.readFileSync(path));
+  const threadID = event.threadID;
 
-    const data = JSON.parse(fs.readFileSync(path));
-    const threadID = event.threadID;
-    if (!data[threadID]) return;
+  if (!data[threadID] || !data[threadID].status) return;
 
-    const threadInfo = await api.getThreadInfo(threadID);
-    const admins = threadInfo.adminIDs.map(a => a.id);
-    const isAdmin = admins.includes(event.senderID);
+  const { author, logMessageData, logMessageType } = event;
+  const whitelist = data[threadID].whitelist || [];
 
-    // 🚫 Block messages from non-admins
-    if (event.body && !isAdmin) {
-      return api.sendMessage("🔒 Group is in full lock. You cannot send messages.", threadID, event.messageID);
-    }
+  if (whitelist.includes(author)) return; // skip if author is allowed
 
-    // 🔁 Revert nickname change
-    if (event.logMessageType === "log:thread-nickname") {
-      const changedID = event.logMessageData.participant_id;
-      const oldName = threadInfo.nicknames?.[changedID] || (await usersData.get(changedID)).name;
-      api.changeNickname(oldName, threadID, changedID);
-    }
+  // nickname change
+  if (logMessageType === "log:thread-nickname") {
+    const targetID = logMessageData.participant_id;
+    const oldNick = logMessageData.nickname;
 
-    // 🔁 Revert group name
-    if (event.logMessageType === "log:thread-name") {
-      const oldName = data[threadID].groupName || "Locked Group";
-      setTimeout(() => api.setTitle(oldName, threadID), 1000);
-    }
-
-    // 🔁 Revert group image
-    if (event.logMessageType === "log:thread-image") {
-      const oldImageURL = data[threadID].groupImage;
-      if (oldImageURL) {
-        try {
-          const image = await axios.get(oldImageURL, { responseType: "stream" });
-          api.changeGroupImage(image.data, threadID);
-        } catch (err) {
-          console.error("Image revert failed:", err);
-        }
+    // revert nickname
+    api.changeNickname("", threadID, targetID, err => {
+      if (!err) {
+        api.sendMessage(`⛔ ${oldNick ? `"${oldNick}"` : "नया"} nickname बदलने की अनुमति नहीं है!`, threadID);
       }
+    });
+  }
+
+  // group name change
+  if (logMessageType === "log:thread-name") {
+    const originalName = data[threadID].originalName;
+    const newName = logMessageData.name;
+
+    if (originalName && originalName !== newName) {
+      api.setTitle(originalName, threadID, err => {
+        if (!err) {
+          api.sendMessage(`⛔ Group name बदलना allowed नहीं है! वापस "${originalName}" कर दिया गया।`, threadID);
+        }
+      });
     }
   }
 };
