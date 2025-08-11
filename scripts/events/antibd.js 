@@ -1,0 +1,39 @@
+module.exports.config = {
+  name: "antibd",
+  eventType: ["log:user-nickname"],
+  version: "1.0.0",
+  author: "𝙋𝙧𝙞𝙮𝙖𝙣𝙨𝙝 𝙍𝙖𝙟𝙥𝙪𝙩 + Raj Edit",
+  description: "Against changing Bot's nickname"
+};
+
+module.exports.handleEvent = async function ({ api, event, Users, Threads }) {
+  const { logMessageData, threadID, author } = event;
+  const botID = api.getCurrentUserID();
+  const { BOTNAME, ADMINBOT } = global.config;
+
+  // Agar bot ka nickname change hua aur change karne wala bot khud nahi hai
+  if (logMessageData.participant_id === botID && author !== botID) {
+    // Agar change karne wala admin list me nahi hai
+    if (!ADMINBOT.includes(author)) {
+      // Thread data se bot ka stored nickname lo
+      const threadData = await Threads.getData(threadID);
+      const savedNickname =
+        threadData?.data?.botNickname || BOTNAME || "Bot";
+
+      // Agar naya nickname saved se alag hai to revert karo
+      if (logMessageData.nickname !== savedNickname) {
+        await api.changeNickname(savedNickname, threadID, botID);
+
+        // Change karne wale ka naam lao
+        const userInfo = await Users.getData(author);
+        const name = userInfo?.name || "User";
+
+        // Warning bhejo
+        return api.sendMessage(
+          `${name} - 𝙏𝙐𝙈 𝘽𝙊𝙏 𝙆𝘼 𝙉𝙄𝘾𝙆𝙉𝘼𝙈𝙀 𝘾𝙃𝘼𝙉𝙂𝙀 𝙉𝙄 𝙆𝘼𝙍 𝙎𝘼𝙆𝙏𝘼𝙔 😹🖐`,
+          threadID
+        );
+      }
+    }
+  }
+};
