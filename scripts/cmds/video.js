@@ -1,61 +1,77 @@
 const axios = require("axios");
 const yts = require("yt-search");
-const fs = require("fs");
-const path = require("path");
 
-module.exports = {
-  config: {
+// 🔗 Base API URL fetch
+const baseApiUrl = async () => {
+    const base = await axios.get(`https://raw.githubusercontent.com/Mostakim0978/D1PT0/refs/heads/main/baseApiUrl.json`);
+    return base.data.api;
+};
+
+(async () => {
+    global.apis = {
+        diptoApi: await baseApiUrl()
+    };
+})();
+
+// 🔍 YouTube Video ID extract function
+function getVideoID(url) {
+    const regex = /^(?:https?:\/\/)?(?:m\.|www\.)?(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=|shorts\/))((\w|-){11})(?:\S+)?$/;
+    const match = url.match(regex);
+    return match ? match[1] : null;
+}
+
+module.exports.config = {
     name: "video",
-    aliases: ["vid", "songvid"],
-    version: "1.3",
-    author: "Nobita",
-    countDown: 5,
-    role: 0,
-    shortDescription: "Download video from YouTube",
-    longDescription: "Searches YouTube and downloads video in MP4 format.",
+    version: "1.1.0",
+    role: 0, // 0 = sab use kar sakte hain
+    author: "Mesbah Saxx ( Convert  by Raj)",
+    description: "YouTube video ko URL ya name se download karein",
     category: "media",
-    guide: "{pn} <song name or YouTube URL>"
-  },
-
-  onStart: async function ({ message, args }) {
-    if (!args.length) return message.reply("❌ Please provide a video name or YouTube link.");
-
-    let videoUrl = args.join(" ");
-    let videoTitle = "Unknown Title";
-
-    try {
-      if (!videoUrl.includes("youtube.com") && !videoUrl.includes("youtu.be")) {
-        message.reply("🔎 Searching for the video...");
-        const searchResults = await yts(videoUrl);
-        if (!searchResults.videos.length) return message.reply("⚠️ No results found.");
-
-        videoUrl = searchResults.videos[0].url;
-        videoTitle = searchResults.videos[0].title;
-      }
-
-      // Debugging log
-      console.log(`✅ Fetching MP4 for: ${videoTitle} (${videoUrl})`);
-
-      // API request
-      const apiUrl = `https://nobita-music-0nwg.onrender.com/download?url=${videoUrl}&type=video`;
-      const response = await axios.get(apiUrl);
-
-      if (!response.data || !response.data.file_url) {
-        console.log("❌ API response invalid:", response.data);
-        return message.reply("❌ Failed to fetch the video. Try again later.");
-      }
-
-      const videoUrlFinal = response.data.file_url;
-      console.log(`✅ Video file URL received: ${videoUrlFinal}`);
-
-      await message.reply({
-        body: `🎬 *Title:* ${videoTitle}\n🔗 *YouTube Link:* ${videoUrl}`,
-        attachment: await global.utils.getStreamFromURL(videoUrlFinal)
-      });
-
-    } catch (error) {
-      console.error("🚨 Video Command Error:", error);
-      return message.reply(`⚠️ Error: ${error.message}`);
+    guide: {
+        en: "{pn} [YouTube URL ya song ka naam]"
     }
-  }
+};
+
+module.exports.onStart = async function ({ api, args, event, utils }) {
+    try {
+        let videoID, searchMsg;
+        const url = args[0];
+
+        // Agar YouTube link diya hai
+        if (url && (url.includes("youtube.com") || url.includes("youtu.be"))) {
+            videoID = getVideoID(url);
+            if (!videoID) {
+                return api.sendMessage("❌ Galat YouTube URL!", event.threadID, event.messageID);
+            }
+        } 
+        // Agar naam diya hai
+        else {
+            const query = args.join(" ");
+            if (!query) return api.sendMessage("❌ Song ka naam ya YouTube link do!", event.threadID, event.messageID);
+
+            searchMsg = await api.sendMessage(`🔍 Searching: "${query}"`, event.threadID);
+            const result = await yts(query);
+            const videos = result.videos.slice(0, 30);
+            const selected = videos[Math.floor(Math.random() * videos.length)];
+            videoID = selected.videoId;
+        }
+
+        // 🔗 API se download link fetch
+        const { data: { title, quality, downloadLink } } = await axios.get(`${global.apis.diptoApi}/ytDl3?link=${videoID}&format=mp4`);
+
+        if (searchMsg?.messageID) api.unsendMessage(searchMsg.messageID);
+
+        // Short link
+        const shortLink = (await axios.get(`https://tinyurl.com/api-create.php?url=${encodeURIComponent(downloadLink)}`)).data;
+
+        // 📩 Video send karo
+        return api.sendMessage({
+            body: `🎬 Title: ${title}\n📺 Quality: ${quality}\n📥 Download: ${shortLink}`,
+            attachment: await utils.getStreamFromURL(downloadLink, `${title}.mp4`)
+        }, event.threadID, event.messageID);
+
+    } catch (err) {
+        console.error(err);
+        return api.sendMessage("⚠️ Error: " + (err.message || "Kuch galat ho gaya!"), event.threadID, event.messageID);
+    }
 };
