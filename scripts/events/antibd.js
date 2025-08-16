@@ -1,43 +1,34 @@
+const botNickLock = {};
+
 module.exports.config = {
     name: "antibd",
-    version: "1.3",
+    version: "2.0",
     author: "Raj",
-    description: "Prevent others from changing the bot's nickname",
-    eventType: ["log:user-nickname"],
+    description: "Lock bot's nickname (auto revert if changed)",
+    eventType: [],
     category: "events"
 };
 
-module.exports.onStart = async function({ api, event, Users }) {
-    try {
-        const botID = api.getCurrentUserID();
-        const threadID = event.threadID;
-        const author = event.author;
+module.exports.onLoad = function({ api }) {
+    const botID = api.getCurrentUserID();
+    const lockedNick = global.config.nickNameBot || "Bot";
 
-        // Config.json ke values
-        const botNickname = global.config.nickNameBot || "Bot";
-        const adminList = global.config.adminBot || [];
+    // Har 10s me nickname check
+    setInterval(async () => {
+        try {
+            const threads = global.data.allThreadID || [];
+            for (const threadID of threads) {
+                const threadInfo = await api.getThreadInfo(threadID);
+                const userInfo = threadInfo.nicknames || {};
+                const currentNick = userInfo[botID] || null;
 
-        // Agar kisi ne bot ka nickname change kiya
-        if (event.logMessageData?.participant_id == botID && author != botID) {
-            const newNick = event.logMessageData.nickname;
-
-            // Sirf non-admin ke liye revert karo
-            if (!adminList.includes(author) && newNick !== botNickname) {
-                await api.changeNickname(botNickname, threadID, botID);
-
-                let name = author;
-                try {
-                    const userData = await Users.getData(author);
-                    name = userData.name || author;
-                } catch (e) {}
-
-                return api.sendMessage(
-                    `${name} ❌ Tum bot ka nickname change nahi kar sakte 😹`,
-                    threadID
-                );
+                if (currentNick !== lockedNick) {
+                    await api.changeNickname(lockedNick, threadID, botID);
+                    api.sendMessage("❌ Bot ka nickname lock hai, change mat karo!", threadID);
+                }
             }
+        } catch (e) {
+            // ignore errors
         }
-    } catch (err) {
-        console.error("Antibd Event Error:", err);
-    }
+    }, 10000); // 10s
 };
