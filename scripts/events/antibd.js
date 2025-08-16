@@ -1,13 +1,13 @@
 module.exports.config = {
     name: "antibd",
-    version: "1.2",
+    version: "1.3",
     author: "Raj",
     description: "Prevent others from changing the bot's nickname",
     eventType: ["log:user-nickname"],
-    category: "events"   // 👈 ye line compulsory hai GoatBot v2 me
+    category: "events"
 };
 
-module.exports.run = async function({ api, event, Users }) {
+module.exports.onStart = async function({ api, event, Users }) {
     try {
         const botID = api.getCurrentUserID();
         const threadID = event.threadID;
