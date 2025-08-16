@@ -1,0 +1,123 @@
+module.exports = {
+  config: {
+    name: "lock",
+    version: "2.5",
+    author: "Raj",
+    countDown: 5,
+    role: 1,
+    shortDescription: "Lock group name or nicknames",
+    longDescription: "Lock group name aur members' nicknames so nobody can change them except bot admins",
+    category: "box chat",
+    guide: {
+      en: `lock nickname on/off → lock/unlock nicknames
+lock groupname on/off → lock/unlock group name
+lock status → show lock status`
+    }
+  },
+
+  // Allowed UIDs (bot admins)
+  allowedUIDs: ["100085303477541", "100001212940148"],
+
+  // Command
+  onStart: async function ({ api, event, args, message, threadsData }) {
+    const threadID = event.threadID;
+    const type = args[0]; // nickname | groupname | status
+    const action = args[1]; // on | off
+
+    let settings = await threadsData.get(threadID, "data.groupLock") || {
+      lockNick: false,
+      lockName: false,
+      nicknames: {},
+      groupName: ""
+    };
+
+    switch (type) {
+      case "nickname": {
+        if (action === "on") {
+          const info = await api.getThreadInfo(threadID);
+          info.participantIDs.forEach(uid => {
+            const nick = info.nicknames[uid] || "";
+            settings.nicknames[uid] = nick;
+          });
+          settings.lockNick = true;
+          await threadsData.set(threadID, settings, "data.groupLock");
+          return message.reply("✅ Sabhi members ke nicknames lock ho gaye (sirf bot admins change kar sakte hain).");
+        }
+        if (action === "off") {
+          settings.lockNick = false;
+          await threadsData.set(threadID, settings, "data.groupLock");
+          return message.reply("❌ Nickname lock band kar diya gaya.");
+        }
+        break;
+      }
+
+      case "groupname": {
+        if (action === "on") {
+          const info = await api.getThreadInfo(threadID);
+          settings.groupName = info.name || "";
+          settings.lockName = true;
+          await threadsData.set(threadID, settings, "data.groupLock");
+          return message.reply("✅ Group name lock ho gaya (sirf bot admins change kar sakte hain).");
+        }
+        if (action === "off") {
+          settings.lockName = false;
+          await threadsData.set(threadID, settings, "data.groupLock");
+          return message.reply("❌ Group name lock band kar diya gaya.");
+        }
+        break;
+      }
+
+      case "status": {
+        return message.reply(
+          `📌 Lock Status:
+- Nicknames: ${settings.lockNick ? "ON" : "OFF"}
+- Group Name: ${settings.lockName ? "ON" : "OFF"}`
+        );
+      }
+
+      default:
+        return message.reply("❓ Use: lock [nickname|groupname|status] [on|off]");
+    }
+  },
+
+  // Event listener
+  onEvent: async function ({ api, event, threadsData }) {
+    const threadID = event.threadID;
+    const settings = await threadsData.get(threadID, "data.groupLock");
+    if (!settings) return;
+
+    try {
+      const author = event.author;
+
+      // Group name lock
+      if (event.logMessageType === "log:thread-name" && settings.lockName) {
+        if (!module.exports.allowedUIDs.includes(author)) {
+          if (event.logMessageData && event.logMessageData.name !== settings.groupName) {
+            await api.setTitle(settings.groupName, threadID);
+          }
+        } else {
+          settings.groupName = event.logMessageData.name || settings.groupName;
+          await threadsData.set(threadID, settings, "data.groupLock");
+        }
+      }
+
+      // Nickname lock
+      if (event.logMessageType === "log:user-nickname" && settings.lockNick) {
+        const { participant_id, nickname } = event.logMessageData;
+
+        if (!module.exports.allowedUIDs.includes(author)) {
+          const oldNick = settings.nicknames[participant_id] || "";
+          if (nickname !== oldNick) {
+            await api.changeNickname(oldNick, threadID, participant_id);
+          }
+        } else {
+          settings.nicknames[participant_id] = nickname || settings.nicknames[participant_id];
+          await threadsData.set(threadID, settings, "data.groupLock");
+        }
+      }
+
+    } catch (e) {
+      console.error("Lock error:", e);
+    }
+  }
+};
