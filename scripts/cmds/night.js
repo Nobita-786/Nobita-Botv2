@@ -2,10 +2,12 @@ const fs = require("fs-extra");
 const path = require("path");
 const axios = require("axios");
 
+let lastSentIndex = -1; // Pehle se koi GIF send nahi hua
+
 module.exports = {
   config: {
     name: "night",
-    version: "1.7",
+    version: "1.8",
     author: "Mr Perfect",
     countDown: 5,
     role: 0,
@@ -39,21 +41,26 @@ module.exports = {
       "𝐆𝐨𝐨𝐝 𝐍𝐢𝐠𝐡𝐭 🌙💤\n🖤 𝐒𝐚𝐩𝐧𝐨 𝐦𝐞 𝐛𝐡𝐢 𝐭𝐮𝐦𝐡𝐚𝐫𝐚 𝐰𝐚𝐢𝐭 𝐤𝐚𝐫𝐮𝐧𝐠𝐚 😉🖤"
     ];
 
-    // GIF/Video URLs ka array
     const mediaUrls = [
-      "https://files.catbox.moe/ig69gc.gif", // Pehla GIF
-      "https://files.catbox.moe/bfzol7.gif"  // Dusra GIF
+      "https://files.catbox.moe/ig69gc.gif",
+      "https://files.catbox.moe/bfzol7.gif"
     ];
 
     if (triggers.includes(messageText)) {
-      const selectedUrl = mediaUrls[Math.floor(Math.random() * mediaUrls.length)]; // Random ek select
+      // Random index generate karo jo lastSentIndex se different ho
+      let newIndex;
+      do {
+        newIndex = Math.floor(Math.random() * mediaUrls.length);
+      } while (newIndex === lastSentIndex && mediaUrls.length > 1);
+      lastSentIndex = newIndex;
+
+      const selectedUrl = mediaUrls[newIndex];
       const cacheDir = path.join(__dirname, "cache");
       const filePath = path.join(cacheDir, "night.gif");
 
       try {
         fs.ensureDirSync(cacheDir);
 
-        // File download function
         const res = await axios({ url: selectedUrl, method: "GET", responseType: "stream" });
         const writer = fs.createWriteStream(filePath);
         res.data.pipe(writer);
