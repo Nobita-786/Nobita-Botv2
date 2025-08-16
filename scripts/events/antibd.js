@@ -3,7 +3,8 @@ module.exports.config = {
     version: "1.2",
     author: "Raj",
     description: "Prevent others from changing the bot's nickname",
-    eventType: ["log:user-nickname"]
+    eventType: ["log:user-nickname"],
+    category: "events"   // 👈 ye line compulsory hai GoatBot v2 me
 };
 
 module.exports.run = async function({ api, event, Users }) {
