@@ -1,29 +1,29 @@
 module.exports.config = {
     name: "antibd",
-    version: "1.1",
+    version: "1.2",
     author: "Raj",
-    description: "Prevents changing the bot's nickname",
+    description: "Prevent others from changing the bot's nickname",
     eventType: ["log:user-nickname"]
 };
 
-module.exports.run = async function({ api, event, Threads, Users }) {
+module.exports.run = async function({ api, event, Users }) {
     try {
         const botID = api.getCurrentUserID();
         const threadID = event.threadID;
         const author = event.author;
 
-        // Config.json ke hisaab se values le lo
+        // Config.json ke values
         const botNickname = global.config.nickNameBot || "Bot";
         const adminList = global.config.adminBot || [];
 
-        if (event.logMessageData?.participant_id == botID && author != botID && !adminList.includes(author)) {
+        // Agar kisi ne bot ka nickname change kiya
+        if (event.logMessageData?.participant_id == botID && author != botID) {
             const newNick = event.logMessageData.nickname;
 
-            if (newNick !== botNickname) {
-                // Nickname revert karo
+            // Sirf non-admin ke liye revert karo
+            if (!adminList.includes(author) && newNick !== botNickname) {
                 await api.changeNickname(botNickname, threadID, botID);
 
-                // Author ka name
                 let name = author;
                 try {
                     const userData = await Users.getData(author);
@@ -31,7 +31,7 @@ module.exports.run = async function({ api, event, Threads, Users }) {
                 } catch (e) {}
 
                 return api.sendMessage(
-                    `${name} - 𝙏𝙐𝙈 𝘽𝙊𝙏 𝙆𝘼 𝙉𝙄𝘾𝙆𝙉𝘼𝙈𝙀 𝘾𝙃𝘼𝙉𝙂𝙀 𝙉𝙄 𝙆𝘼𝙍 𝙎𝘼𝙆𝙏𝘼😹🖐`,
+                    `${name} ❌ Tum bot ka nickname change nahi kar sakte 😹`,
                     threadID
                 );
             }
