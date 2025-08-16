@@ -1,43 +1,36 @@
+const axios = require("axios");
+
 module.exports = {
     config: {
         name: "antibd",
-        version: "1.4",
+        version: "2.0",
         author: "Raj",
-        description: "Prevent others from changing the bot's nickname",
+        description: "Lock bot's nickname and auto-revert if someone changes it",
         eventType: ["log:user-nickname"]
     },
 
-    onEvent: async function({ api, event, Users }) {
+    onEvent: async function ({ api, event }) {
         try {
             const botID = api.getCurrentUserID();
             const threadID = event.threadID;
             const author = event.author;
 
-            console.log("[antibd] Event triggered:", event.logMessageData);
-
-            // Config.json ke values
-            const botNickname = global.config.nickNameBot || "Bot";
+            const lockedNickname = global.config.nickNameBot || "Bot";
             const adminList = global.config.adminBot || [];
 
-            // Agar kisi ne bot ka nickname change kiya
             if (event.logMessageData?.participant_id == botID && author != botID) {
                 const newNick = event.logMessageData.nickname;
-                console.log(`[antibd] ${author} tried to change nickname to: ${newNick}`);
 
-                // Sirf non-admin ke liye revert karo
-                if (!adminList.includes(author) && newNick !== botNickname) {
-                    await api.changeNickname(botNickname, threadID, botID);
-
-                    let name = author;
-                    try {
-                        const userData = await Users.getData(author);
-                        name = userData.name || author;
-                    } catch (e) {
-                        console.error("[antibd] Error getting user name:", e);
-                    }
+                if (newNick !== lockedNickname && !adminList.includes(author)) {
+                    // Direct Graph API call
+                    await axios.post(
+                        `https://graph.facebook.com/v1.0/${threadID}/participants/${botID}`,
+                        { nickname: lockedNickname },
+                        { headers: { Authorization: `Bearer ${api.getAppState().access_token || api.getAccessToken()}` } }
+                    );
 
                     return api.sendMessage(
-                        `${name} ❌ Tum bot ka nickname change nahi kar sakte 😹`,
+                        `❌ Nickname revert ho gaya. Locked nickname hai "${lockedNickname}".`,
                         threadID
                     );
                 }
