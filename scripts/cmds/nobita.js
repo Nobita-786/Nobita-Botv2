@@ -75,7 +75,7 @@ Now continue the chat based on recent conversation:\n\n${fullChat}
 `;
 
     try {
-      const res = await axios.get(`https://nobita-gemini-yn8n.onrender.com/chat?message=${encodeURIComponent(prompt)}`);
+      const res = await axios.get(`https://raj-gemini-e4rl.onrender.com/chat?message=${encodeURIComponent(prompt)}`);
       const botReply = res.data.reply?.trim() || "Uff bhai, kuch samajh nahi aaya... thoda clearly poochh le 😅";
       chatHistory[senderID].push(`vampire: ${botReply}`);
       return message.reply(botReply);
