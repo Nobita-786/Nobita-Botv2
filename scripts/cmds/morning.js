@@ -28,7 +28,7 @@ module.exports = {
       "good morning",
       "gud morning",
       "gm",
-      "सुबह बखैर",
+      "morning",
       "शुभ प्रभात"
     ];
 
