@@ -6,7 +6,7 @@ const FormData = require("form-data");
 module.exports = {
   config: {
     name: "upload",
-    aliases:["imgur"],
+    aliases:["imgurl"],
     version: "3.0",
     author: "Raj",
     countDown: 5,
