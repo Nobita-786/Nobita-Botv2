@@ -3,7 +3,7 @@ const fs = require("fs-extra");
 
 module.exports = {
   config: {
-    name: "war",
+    name: "war2",
     version: "1.2.0",
     author: "Raj",
     description: "Auto gali on UID's messages (trigger by war command)",
