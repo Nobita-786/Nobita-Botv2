@@ -130,6 +130,6 @@ module.exports = {
 ];
 
     const rand = galis[Math.floor(Math.random() * galis.length)];
-const name = await usersData.getName(event.senderID);
+    const name = await usersData.getName(event.senderID);
 
-api.sendMessage(`💢 ${name} ➤ ${rand}`, event.threadID);
+    api.sendMessage(`💢 ${name} ➤ ${rand}`, event.threadID);
