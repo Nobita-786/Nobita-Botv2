@@ -133,3 +133,5 @@ module.exports = {
     const name = await usersData.getName(event.senderID);
 
     api.sendMessage(`💢 ${name} ➤ ${rand}`, event.threadID);
+  }
+};
