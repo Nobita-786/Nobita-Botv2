@@ -1,43 +1,50 @@
 const axios = require("axios");
+const request = require("request");
+const fs = require("fs");
 
 module.exports = {
   config: {
-    name: "slap",
-    version: "1.1",
-    author: "YourName",
+    name: "kill",
+    version: "1.0.0",
+    author: "Raj",
     countDown: 5,
     role: 0,
-    shortDescription: "Slap someone",
-    longDescription: "Mention a user to slap them with a random GIF",
+    shortDescription: "Slap the tagged friend",
+    longDescription: "Tag someone and the bot will slap them with a funny gif",
     category: "fun",
-    guide: "{pn} @mention"
+    guide: {
+      en: "{pn} @mention"
+    }
   },
 
-  onStart: async function ({ event, message, usersData }) {
+  onStart: async function ({ message, event, api }) {
     if (!event.mentions || Object.keys(event.mentions).length === 0) {
-      return message.reply("कृपया किसी को slap करने के लिए mention करें!");
+      return message.reply("Please tag someone!");
     }
 
-    async function getSlapGif() {
-      try {
-        const res = await axios.get("https://api.waifu.pics/sfw/slap");
-        return res.data.url;
-      } catch (err) {
-        console.error("GIF fetch error:", err);
-        return "https://media.tenor.com/images/d1d5ebc5b91d5e91893f6d653e32e72f/tenor.gif";
-      }
+    try {
+      const res = await axios.get("https://api.waifu.pics/sfw/slap");
+      const getURL = res.data.url;
+      const ext = getURL.substring(getURL.lastIndexOf(".") + 1);
+      const mentionID = Object.keys(event.mentions)[0];
+      const tag = event.mentions[mentionID].replace("@", "");
+
+      const path = `${__dirname}/cache/slap.${ext}`;
+      const fileStream = fs.createWriteStream(path);
+
+      request(getURL).pipe(fileStream).on("close", () => {
+        api.setMessageReaction("✅", event.messageID, () => {}, true);
+
+        message.reply({
+          body: `Slapped! ${tag}\n\n*sorry, I thought there's a mosquito*`,
+          mentions: [{ tag: tag, id: mentionID }],
+          attachment: fs.createReadStream(path)
+        }).then(() => fs.unlinkSync(path));
+      });
+    } catch (err) {
+      console.error("❌ Error in kill.js:", err);
+      message.reply("❌ Failed to generate GIF, please try again later.");
+      api.setMessageReaction("☹️", event.messageID, () => {}, true);
     }
-
-    const slapGif = await getSlapGif();
-    let mentionedUser = Object.keys(event.mentions)[0];
-    let senderName = await usersData.getName(event.senderID);
-    let mentionedName = await usersData.getName(mentionedUser);
-
-    let replyMsg = `😡 ${senderName} ने ${mentionedName} को ज़ोरदार थप्पड़ मारा!`;
-
-    message.reply({
-      body: replyMsg,
-      attachment: await global.utils.getStreamFromURL(slapGif)
-    });
   }
 };
