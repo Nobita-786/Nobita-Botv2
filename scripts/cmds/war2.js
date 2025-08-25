@@ -130,15 +130,6 @@ module.exports = {
 ];
 
     const rand = galis[Math.floor(Math.random() * galis.length)];
+const name = await usersData.getName(event.senderID);
 
-    try {
-      const res = await axios.get(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=hi&tl=${found.lang}&dt=t&q=${encodeURIComponent(rand)}`);
-      const translated = res.data[0].map(i => i[0]).join(" ");
-      const name = await usersData.getName(event.senderID);
-      api.sendMessage(`💢 ${name} ➤ ${translated}`, event.threadID);
-    } catch (e) {
-      const name = await usersData.getName(event.senderID);
-      api.sendMessage(`💢 ${name} ➤ ${rand}`, event.threadID);
-    }
-  }
-};
+api.sendMessage(`💢 ${name} ➤ ${rand}`, event.threadID);
