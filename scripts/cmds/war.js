@@ -13,7 +13,7 @@ function writeWarJson(data) {
   fs.writeFileSync(warJsonPath, JSON.stringify(data, null, 2));
 }
 
-const galis = [
+const m = [
   "TERIIIIIIIII BHENN KAA BHOSDDA MADERJAAT TERII AMMAA KA NADAA KHOLU🤣🤣🤣",
   "ABEE DHHIILLE LOWDE K BALLL TERII AAMMA MERE PASS AATII THIII😂",
   "TERII BHENN CHODD DUNGAA BSDKK LOWDE MADERJAAT AUKAAATTT LESS TATTA🤪",
