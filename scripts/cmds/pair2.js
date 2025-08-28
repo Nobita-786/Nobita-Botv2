@@ -1,102 +1,64 @@
-const { GoatWrapper } = require('fca-liane-utils');
-const { loadImage, createCanvas } = require("canvas");
-const axios = require("axios");
-const fs = require("fs-extra");
+const axios = require('axios');
+const jimp = require("jimp");
+const fs = require("fs");
 
 module.exports = {
   config: {
     name: "pair2",
-    author: "xemon",
+    aliases: ["call"],
+    version: "1.0",
+    author: "Raj",
+    countDown: 2,
     role: 0,
-    shortDescription: "Pair two people",
-    longDescription: "Randomly pairs two users based on gender",
-    category: "love",
-    guide: "{pn}"
+    shortDescription: "make calling image",
+    longDescription: "",
+    category: "18+",
+    guide: {
+      vi: "{pn} @tag ",
+      en: "{pn} @tag "
+    }
   },
 
-  onStart: async function ({ api, event, usersData }) {
-    let pathImg = __dirname + "/cache/background.png";
-    let pathAvt1 = __dirname + "/cache/Avtmot.png";
-    let pathAvt2 = __dirname + "/cache/Avthai.png";
-
-    var id1 = event.senderID;
-    var name1 = (await usersData.get(id1))?.name || "User 1";
-
-    let ThreadInfo = await api.getThreadInfo(event.threadID);
-    let all = ThreadInfo.userInfo;
-    let gender1 = "OTHER";
+  onStart: async function ({ message, args, event, api }) {
+    const mention = Object.keys(event.mentions);
+    if (mention.length == 0) return message.reply("Please mention someone");
     
-    for (let user of all) {
-      if (user.id == id1) {
-        gender1 = user.gender === 1 ? "FEMALE" : user.gender === 2 ? "MALE" : "OTHER";
-      }
-    }
-
-    const botID = api.getCurrentUserID();
-    let candidates = [];
-
-    if (gender1 === "FEMALE") {
-      candidates = all.filter(u => u.gender === 2 && u.id !== id1 && u.id !== botID).map(u => u.id);
-    } else if (gender1 === "MALE") {
-      candidates = all.filter(u => u.gender === 1 && u.id !== id1 && u.id !== botID).map(u => u.id);
+    let one, two;
+    if (mention.length == 1) {
+      one = event.senderID;
+      two = mention[0];
     } else {
-      candidates = all.filter(u => u.id !== id1 && u.id !== botID).map(u => u.id);
+      one = mention[1];
+      two = mention[0];
     }
 
-    if (candidates.length === 0) {
-      return api.sendMessage("⚠️ No suitable match found!", event.threadID);
-    }
-
-    let id2 = candidates[Math.floor(Math.random() * candidates.length)];
-    let name2 = (await usersData.get(id2))?.name || "User 2";
-
-    let matchPercent = Math.floor(Math.random() * 100) + 1;
-    let backgroundImages = [
-      "https://i.imgur.com/JhUIicn.jpeg"
-    ];
-    let backgroundURL = backgroundImages[Math.floor(Math.random() * backgroundImages.length)];
-
-    let userInfo1 = await api.getUserInfo(id1);
-    let userInfo2 = await api.getUserInfo(id2);
-    let avatarURL1 = userInfo1[id1]?.thumbSrc || "";
-    let avatarURL2 = userInfo2[id2]?.thumbSrc || "";
-
-    let getAvtmot = (await axios.get(avatarURL1, { responseType: "arraybuffer" })).data;
-    fs.writeFileSync(pathAvt1, Buffer.from(getAvtmot, "utf-8"));
-
-    let getAvthai = (await axios.get(avatarURL2, { responseType: "arraybuffer" })).data;
-    fs.writeFileSync(pathAvt2, Buffer.from(getAvthai, "utf-8"));
-
-    let getBackground = (await axios.get(backgroundURL, { responseType: "arraybuffer" })).data;
-    fs.writeFileSync(pathImg, Buffer.from(getBackground, "utf-8"));
-
-    let baseImage = await loadImage(pathImg);
-    let baseAvt1 = await loadImage(pathAvt1);
-    let baseAvt2 = await loadImage(pathAvt2);
-    let canvas = createCanvas(baseImage.width, baseImage.height);
-    let ctx = canvas.getContext("2d");
-
-    ctx.drawImage(baseImage, 0, 0, canvas.width, canvas.height);
-    ctx.drawImage(baseAvt1, 80, 90, 265, 280);
-    ctx.drawImage(baseAvt2, 690, 90, 265, 280);
-
-    const imageBuffer = canvas.toBuffer();
-    fs.writeFileSync(pathImg, imageBuffer);
-    fs.removeSync(pathAvt1);
-    fs.removeSync(pathAvt2);
-
-    return api.sendMessage(
-      {
-        body: `💞Successful pairing!\n💌Wish you two hundred years of happiness. 🥰\nMay you both always be happy🙂\n👫 ${name1} + ${name2}\n❤️ Match Percentage: ${matchPercent}%`,
-        mentions: [{ tag: name2, id: id2 }],
-        attachment: fs.createReadStream(pathImg),
-      },
-      event.threadID,
-      () => fs.unlinkSync(pathImg),
-      event.messageID
-    );
-  },
+    bal(one, two).then(ptth => {
+      const captions = [
+        "❤️ True love is when two souls call each other even in silence ❤️",
+        "💞 Your smile is my favorite ringtone 💞",
+        "✨ Love is not about distance, it’s about connection ✨",
+        "🥰 When you call me, my heart skips a beat 🥰",
+        "🌸 Every call with you feels like a lifetime of happiness 🌸",
+        "💕 No network problem in love, our hearts are always connected 💕",
+        "📞 Love is the best signal, and you are my strongest connection 📞"
+      ];
+      const randomCaption = captions[Math.floor(Math.random() * captions.length)];
+      
+      message.reply({ body: randomCaption, attachment: fs.createReadStream(ptth) });
+    });
+  }
 };
 
-const wrapper = new GoatWrapper(module.exports);
-wrapper.applyNoPrefix({ allowPrefix: true });
+async function bal(one, two) {
+  let avone = await jimp.read(`https://graph.facebook.com/${one}/picture?width=512&height=512&access_token=6628568379%7Cc1e620fa708a1d5696fb991c1bde5662`);
+  avone.circle();
+  let avtwo = await jimp.read(`https://graph.facebook.com/${two}/picture?width=512&height=512&access_token=6628568379%7Cc1e620fa708a1d5696fb991c1bde5662`);
+  avtwo.circle();
+  let pth = "abcd.png";
+  let img = await jimp.read("https://i.ibb.co/VY0nV5CT/1756358916567-0-38773420001392234.jpg");
+  img.resize(1280, 1380)
+     .composite(avone.resize(250, 250), 235, 605)
+     .composite(avtwo.resize(250, 250), 770, 560);
+  await img.writeAsync(pth);
+  return pth;
+}
