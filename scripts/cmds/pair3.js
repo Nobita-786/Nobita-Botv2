@@ -68,7 +68,7 @@ module.exports = {
       const dp1 = await getDP(uid1);
       const dp2 = await getDP(uid2);
 
-      const bg = await jimp.read("https://i.imgur.com/0a0lD5l.jpeg");
+      const bg = await jimp.read("https://i.ibb.co/pBW6sJvn/1756380534372-0-9829852431279544.jpg");
       const img1 = await jimp.read(dp1);
       const img2 = await jimp.read(dp2);
 
