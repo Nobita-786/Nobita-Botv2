@@ -5,8 +5,8 @@ const path = require("path");
 
 module.exports = {
   config: {
-    name: "pair",
-    aliases: ["pair"],
+    name: "pair2",
+    aliases: ["call"],
     version: "1.0",
     author: "Aayusha Shrestha", // if you change credit you are doggie of aayusha
     countDown: 2,
