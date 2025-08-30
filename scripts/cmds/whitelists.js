@@ -7,7 +7,7 @@ module.exports = {
     name: "whitelists",
     aliases: ["wlonly", "onlywlst", "onlywhitelist", "wl"],
     version: "1.6",
-    author: "Raj (fix by GPT)",
+    author: "Raj (fix by Nobita)",
     countDown: 5,
     role: 0,
     description: {
