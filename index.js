@@ -1,38 +1,51 @@
-/**
- * @author NTKhang
- * ! The source code is written by NTKhang, please don't change the author's name everywhere. Thank you for using
- * ! Official source code: https://github.com/ntkhang03/Goat-Bot-V2
- * ! If you do not download the source code from the above address, you are using an unknown version and at risk of having your account hacked
- *
- * English:
- * ! Please do not change the below code, it is very important for the project.
- * It is my motivation to maintain and develop the project for free.
- * ! If you change it, you will be banned forever
- * Thank you for using
- *
- * Vietnamese:
- * ! Vui lòng không thay đổi mã bên dưới, nó rất quan trọng đối với dự án.
- * Nó là động lực để tôi duy trì và phát triển dự án miễn phí.
- * ! Nếu thay đổi nó, bạn sẽ bị cấm vĩnh viễn
- * Cảm ơn bạn đã sử dụng
- */
-
+const express = require("express");
 const { spawn } = require("child_process");
-const log = require("./logger/log.js");
+const fs = require("fs");
+const path = require("path");
 
+const app = express();
+
+// Healthcheck endpoint (Render ke liye)
+app.get("/", (req, res) => {
+  res.send("✅ GoatBot is running fine on Render!");
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`🌐 Healthcheck server running on port ${PORT}`);
+});
+
+// ---- GoatBot start ----
 function startProject() {
-        const child = spawn("node", ["Goat.js"], {
-                cwd: __dirname,
-                stdio: "inherit",
-                shell: true
-        });
+  const child = spawn("node", ["Goat.js"], {
+    cwd: __dirname,
+    stdio: "inherit",
+    shell: true
+  });
 
-        child.on("close", (code) => {
-                if (code == 2) {
-                        log.info("Restarting Project...");
-                        startProject();
-                }
-        });
+  // Agar Goat.js crash kare to restart
+  child.on("close", (code) => {
+    if (code === 2) {
+      console.log("♻️ Restarting GoatBot...");
+      startProject();
+    } else {
+      console.log(`❌ GoatBot exited with code ${code}`);
+    }
+  });
+
+  // Agar Goat.js update kare appstate.json, to usko auto-save rakho
+  child.on("exit", () => {
+    const appStateFile = path.join(__dirname, "appstate.json");
+    if (fs.existsSync(appStateFile)) {
+      try {
+        const appState = JSON.parse(fs.readFileSync(appStateFile, "utf8"));
+        fs.writeFileSync(appStateFile, JSON.stringify(appState, null, 2));
+        console.log("💾 appstate.json refreshed");
+      } catch (err) {
+        console.error("⚠️ Failed to refresh appstate.json:", err.message);
+      }
+    }
+  });
 }
 
 startProject();
